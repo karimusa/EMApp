@@ -1,13 +1,18 @@
-"""Application entry point."""
+"""Application entry point — Month-End Orchestration on port 50006."""
 
 import os
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from app import create_app
-from config.settings import DevelopmentConfig, ProductionConfig
+from config.settings import DevelopmentConfig, ProductionConfig, TestingConfig
 
 config_map = {
     "development": DevelopmentConfig,
     "production": ProductionConfig,
+    "testing": TestingConfig,
 }
 
 env = os.environ.get("FLASK_ENV", "development")
@@ -15,7 +20,7 @@ app = create_app(config_map.get(env, DevelopmentConfig))
 
 if __name__ == "__main__":
     app.run(
-        host=os.environ.get("HOST", "127.0.0.1"),
-        port=int(os.environ.get("PORT", 5000)),
+        host=app.config.get("HOST", "0.0.0.0"),
+        port=int(os.environ.get("PORT", app.config.get("PORT", 50006))),
         debug=app.config.get("DEBUG", False),
     )

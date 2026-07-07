@@ -1,0 +1,35 @@
+{% if current_run %}
+<div class="run-header ops-card mb-3">
+    <div class="ops-card-body py-3">
+        <div class="row align-items-center">
+            <div class="col-md-4">
+                <h5 class="mb-1">{{ current_run.job_name }}</h5>
+                <span class="badge status-badge status-{{ current_run.run_status | lower | replace(' ', '-') }}">
+                    {{ current_run.run_status }}
+                </span>
+                <span class="text-muted small ms-2">Phase: <strong>{{ current_run.current_phase }}</strong></span>
+            </div>
+            <div class="col-md-5">
+                <div class="d-flex justify-content-between small mb-1">
+                    <span>Progress</span>
+                    <span>{{ current_run.progress_pct or 0 }}%</span>
+                </div>
+                <div class="progress progress-run" style="height: 8px;">
+                    <div class="progress-bar bg-info" style="width: {{ current_run.progress_pct or 0 }}%"></div>
+                </div>
+            </div>
+            <div class="col-md-3 text-md-end small text-muted">
+                {% if current_run.started_at %}
+                Started: {{ current_run.started_at }}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="run-header ops-card mb-3">
+    <div class="ops-card-body py-3 text-muted">
+        <i class="bi bi-info-circle"></i> No active orchestration run.
+    </div>
+</div>
+{% endif %}

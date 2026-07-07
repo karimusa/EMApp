@@ -1,0 +1,103 @@
+/* Login page — enterprise dark navy theme */
+
+:root {
+    --login-navy: #0a1628;
+    --login-navy-mid: #0f2744;
+    --login-blue: #1a4d7c;
+    --login-accent: #3b9fd9;
+}
+
+.login-body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(160deg, var(--login-navy) 0%, var(--login-navy-mid) 40%, var(--login-blue) 100%);
+    position: relative;
+    overflow: hidden;
+}
+
+.login-overlay {
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 20% 80%, rgba(59, 159, 217, 0.12) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(59, 159, 217, 0.08) 0%, transparent 40%);
+    pointer-events: none;
+}
+
+.login-container {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 420px;
+    padding: 1.5rem;
+}
+
+.login-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 2.5rem 2rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.login-logo {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto;
+    background: linear-gradient(135deg, var(--login-blue), var(--login-accent));
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 1.75rem;
+}
+
+.login-title {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--login-navy);
+    margin-bottom: 0.25rem;
+}
+
+.login-subtitle {
+    font-size: 0.9rem;
+}
+
+.login-card .form-label {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #334155;
+}
+
+.login-card .form-control,
+.login-card .input-group-text {
+    border-radius: 8px;
+    border-color: #e2e8f0;
+    padding: 0.6rem 0.85rem;
+}
+
+.login-card .form-control:focus {
+    border-color: var(--login-accent);
+    box-shadow: 0 0 0 3px rgba(59, 159, 217, 0.2);
+}
+
+.login-btn {
+    padding: 0.7rem;
+    border-radius: 8px;
+    font-weight: 600;
+    background: linear-gradient(135deg, var(--login-blue), var(--login-accent));
+    border: none;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.login-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(26, 77, 124, 0.35);
+    background: linear-gradient(135deg, #164068, #3498c8);
+}
+
+.login-btn:active {
+    transform: translateY(0);
+}

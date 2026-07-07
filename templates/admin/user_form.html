@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}{% if user %}Edit User{% else %}Add User{% endif %} — Administration{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="ops-card">
+            <div class="ops-card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-{% if user %}pencil{% else %}person-plus{% endif %}"></i>
+                    {% if user %}Edit User: {{ user.username }}{% else %}Add New User{% endif %}
+                </h5>
+            </div>
+            <div class="ops-card-body">
+                <form method="POST">
+                    {% if not user %}
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="username" name="username" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="password" name="password" required>
+                    </div>
+                    {% else %}
+                    <div class="mb-3">
+                        <label for="new_password" class="form-label">New Password</label>
+                        <input type="password" class="form-control" id="new_password" name="new_password"
+                               placeholder="Leave blank to keep current password">
+                    </div>
+                    {% endif %}
+
+                    <div class="mb-3">
+                        <label for="role" class="form-label">Role</label>
+                        <select class="form-select" id="role" name="role">
+                            {% for r in roles %}
+                            <option value="{{ r }}" {% if user and user.role == r %}selected{% endif %}>{{ r }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    {% if user %}
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="is_active" name="is_active"
+                               {% if user.is_active %}checked{% endif %}>
+                        <label class="form-check-label" for="is_active">Active</label>
+                    </div>
+                    {% endif %}
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg"></i> Save
+                        </button>
+                        <a href="{{ url_for('admin.users') }}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

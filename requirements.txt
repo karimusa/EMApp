@@ -10,7 +10,14 @@ blinker==1.9.0
 # Configuration
 python-dotenv==1.0.1
 
+# Database
+pyodbc==5.2.0
+
+# Security — encrypted connection passwords
+cryptography==44.0.0
+
 # Production server
+waitress==3.0.2
 gunicorn==23.0.0
 
 # Testing

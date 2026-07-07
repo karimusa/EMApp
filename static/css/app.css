@@ -1,0 +1,227 @@
+/* RRA Month-End Orchestration — Operations Console */
+
+:root {
+    --ops-navy: #0b1f3a;
+    --ops-navy-light: #132d54;
+    --ops-blue: #1e5a8a;
+    --ops-accent: #3b9fd9;
+    --ops-bg: #eef2f7;
+    --ops-card: #ffffff;
+    --ops-border: #d8e0ea;
+    --ops-text: #1a2332;
+    --ops-muted: #6b7c93;
+}
+
+body.app-body {
+    background: var(--ops-bg);
+    color: var(--ops-text);
+    min-height: 100vh;
+}
+
+.ops-navbar {
+    background: linear-gradient(135deg, var(--ops-navy) 0%, var(--ops-navy-light) 100%);
+    border-bottom: 2px solid var(--ops-accent);
+    padding: 0.5rem 1rem;
+}
+
+.ops-card {
+    background: var(--ops-card);
+    border: 1px solid var(--ops-border);
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(11, 31, 58, 0.06);
+    overflow: hidden;
+}
+
+.ops-card-header {
+    background: #f7f9fc;
+    border-bottom: 1px solid var(--ops-border);
+    padding: 0.85rem 1.25rem;
+}
+
+.ops-card-body {
+    padding: 1.25rem;
+}
+
+.ops-table thead th {
+    background: #f7f9fc;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--ops-muted);
+    border-bottom-width: 1px;
+}
+
+.phase-tabs .nav-link {
+    color: var(--ops-muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.35rem 0.85rem;
+    border-radius: 6px;
+}
+
+.phase-tabs .nav-link.active {
+    background: var(--ops-blue);
+    color: #fff;
+}
+
+/* Step cards */
+.step-card {
+    border: 1px solid var(--ops-border);
+    border-radius: 10px;
+    background: #fff;
+    transition: box-shadow 0.2s, border-color 0.2s;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.step-card:hover {
+    box-shadow: 0 4px 12px rgba(11, 31, 58, 0.1);
+    border-color: var(--ops-accent);
+}
+
+.step-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 0.85rem 1rem 0.5rem;
+    border-bottom: 1px solid #f0f3f7;
+}
+
+.step-name {
+    font-weight: 600;
+    color: var(--ops-navy);
+}
+
+.server-badge {
+    font-size: 0.75rem;
+    color: var(--ops-muted);
+    white-space: nowrap;
+}
+
+.step-card-body {
+    padding: 0.75rem 1rem;
+    flex: 1;
+}
+
+.step-status-row {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.status-label {
+    display: block;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    color: var(--ops-muted);
+    letter-spacing: 0.04em;
+}
+
+.step-card-footer {
+    padding: 0.65rem 1rem;
+    border-top: 1px solid #f0f3f7;
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* Status badges */
+.status-completed, .validation-passed, .validation-pass {
+    background-color: #198754 !important;
+}
+
+.status-pending, .validation-pending {
+    background-color: #6c757d !important;
+}
+
+.status-running, .status-in-progress {
+    background-color: #0dcaf0 !important;
+    color: #000 !important;
+}
+
+.status-failed, .validation-failed, .validation-fail {
+    background-color: #dc3545 !important;
+}
+
+.status-in-progress, .status-badge.status-in-progress {
+    background-color: #ffc107 !important;
+    color: #000 !important;
+}
+
+/* Progress bar */
+.progress-run {
+    background-color: #e2e8f0;
+    border-radius: 4px;
+}
+
+/* Log panel */
+.log-panel {
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+.log-entry {
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid #f0f3f7;
+    font-size: 0.85rem;
+}
+
+.log-entry:hover {
+    background: #f8fafc;
+}
+
+.log-meta {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.25rem;
+    flex-wrap: wrap;
+}
+
+.log-time {
+    font-size: 0.75rem;
+    color: var(--ops-muted);
+}
+
+.log-step {
+    font-weight: 600;
+    font-size: 0.8rem;
+}
+
+.log-info .log-message { color: var(--ops-text); }
+.log-warning .log-message { color: #b45309; }
+.log-error .log-message { color: #dc2626; }
+
+/* Metrics */
+.metrics-list .metric-item {
+    border-bottom: 1px solid #f0f3f7;
+}
+
+.metrics-list .metric-item:last-child {
+    border-bottom: none;
+}
+
+.metric-name {
+    font-size: 0.85rem;
+    color: var(--ops-muted);
+}
+
+.metric-value {
+    color: var(--ops-navy);
+}
+
+/* SQL Agent job status */
+.job-status-succeeded { background-color: #198754 !important; }
+.job-status-failed { background-color: #dc3545 !important; }
+.job-status-running { background-color: #ffc107 !important; color: #000 !important; }
+.job-status-disabled { background-color: #6c757d !important; }
+.job-status-error { background-color: #dc3545 !important; }
+
+/* Toast notifications */
+.ops-toast {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 9999;
+    min-width: 280px;
+}
