@@ -79,21 +79,43 @@
 
     <!-- Phase tabs + toolbar -->
     <div class="phase-toolbar">
-        <div class="phase-tabs" role="tablist">
+        <div class="phase-tabs" role="tablist" aria-label="Phases">
             {% for phase in phases %}
             <button class="phase-tab {% if loop.first %}active{% endif %}"
-                    data-phase="{{ phase.key }}" role="tab" type="button">
+                    data-phase="{{ phase.key }}" role="tab" type="button"
+                    aria-selected="{{ 'true' if loop.first else 'false' }}"
+                    tabindex="{{ '0' if loop.first else '-1' }}">
                 <span class="phase-name">{{ phase.label }}</span>
                 <span class="phase-count">{{ phase.completed }}/{{ phase.total }}</span>
             </button>
             {% endfor %}
         </div>
-        <div class="view-toolbar">
+        <div class="step-controls">
+            <div class="search-box">
+                <i class="bi bi-search"></i>
+                <input type="search" id="stepSearch" placeholder="Search steps…" aria-label="Search steps" autocomplete="off">
+            </div>
+            <select id="statusFilter" class="filter-select" aria-label="Filter by status">
+                <option value="all">All Steps</option>
+                <option value="success">Success</option>
+                <option value="running">Running</option>
+                <option value="pending">Pending</option>
+                <option value="failed">Failed</option>
+                <option value="valfailed">Validation failed</option>
+            </select>
+            <span class="result-count" id="resultCount"></span>
             <div class="view-toggle" role="group" aria-label="View mode">
                 <button class="view-btn active" data-view="grid" type="button" aria-label="Grid view"><i class="bi bi-grid-3x3-gap-fill"></i></button>
                 <button class="view-btn" data-view="list" type="button" aria-label="List view"><i class="bi bi-list-ul"></i></button>
             </div>
         </div>
+    </div>
+
+    <!-- Empty state shown when a filter matches nothing -->
+    <div class="steps-empty d-none" id="stepsEmpty">
+        <i class="bi bi-inbox"></i>
+        <p>No steps match your filters.</p>
+        <button class="btn-ghost" type="button" id="clearFilters">Clear filters</button>
     </div>
 
     <!-- Step panels -->
@@ -137,7 +159,7 @@
         <section class="log-panel">
             <div class="log-head">
                 <h3><i class="bi bi-terminal"></i> Execution Log</h3>
-                <button class="btn-ghost" type="button">View Full Log</button>
+                <button class="btn-ghost" type="button" id="viewFullLogBtn">View Full Log</button>
             </div>
             <div class="log-table-wrap">
                 <table class="log-table">
@@ -163,6 +185,82 @@
                 </table>
             </div>
         </section>
+    </div>
+
+    <!-- Step detail modal -->
+    <div class="modal-overlay d-none" id="stepModal" role="dialog" aria-modal="true" aria-labelledby="stepModalTitle">
+        <div class="modal-card">
+            <div class="modal-head">
+                <div class="modal-title-wrap">
+                    <span class="modal-order" id="stepModalOrder">01</span>
+                    <div>
+                        <h3 id="stepModalTitle">Step</h3>
+                        <span class="modal-sub" id="stepModalPhase"></span>
+                    </div>
+                </div>
+                <button class="modal-close" type="button" data-modal-close aria-label="Close"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-badges" id="stepModalBadges"></div>
+                <p class="modal-message" id="stepModalMessage"></p>
+                <dl class="modal-facts">
+                    <div><dt>Server</dt><dd class="mono" id="stepModalServer"></dd></div>
+                    <div><dt>Last run</dt><dd class="mono" id="stepModalLastRun"></dd></div>
+                    <div><dt>Duration</dt><dd class="mono" id="stepModalDuration"></dd></div>
+                    <div><dt>Execute proc</dt><dd class="mono" id="stepModalExecProc"></dd></div>
+                    <div><dt>Validate proc</dt><dd class="mono" id="stepModalValProc"></dd></div>
+                </dl>
+            </div>
+            {% if nav_is_admin %}
+            <div class="modal-foot">
+                <button class="btn-run" type="button" id="stepModalRun"><i class="bi bi-play-fill"></i> Run</button>
+                <button class="btn-validate" type="button" id="stepModalValidate"><i class="bi bi-patch-check"></i> Validate</button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Full execution log modal -->
+    <div class="modal-overlay d-none" id="logModal" role="dialog" aria-modal="true" aria-labelledby="logModalTitle">
+        <div class="modal-card modal-card--wide">
+            <div class="modal-head">
+                <h3 id="logModalTitle"><i class="bi bi-terminal"></i> Execution Log</h3>
+                <div class="modal-head-actions">
+                    <select id="logPhaseFilter" class="filter-select" aria-label="Filter log by phase">
+                        <option value="all">All phases</option>
+                        {% for phase in phases %}
+                        <option value="{{ phase.key }}">{{ phase.label }}</option>
+                        {% endfor %}
+                    </select>
+                    <button class="modal-close" type="button" data-modal-close aria-label="Close"><i class="bi bi-x-lg"></i></button>
+                </div>
+            </div>
+            <div class="modal-body modal-body--flush">
+                <div class="log-table-wrap">
+                    <table class="log-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th><th>Phase</th><th>Step</th><th>Message</th>
+                                <th>Status</th><th>Duration</th><th>Server</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in execution_log %}
+                            <tr data-log-phase="{{ row.phase }}">
+                                <td class="mono">{{ row.logged_at }}</td>
+                                <td><span class="phase-chip">{{ row.phase }}</span></td>
+                                <td>{{ row.step_name }}</td>
+                                <td class="log-msg">{{ row.message }}</td>
+                                <td>{{ log_status(row.status) }}</td>
+                                <td class="mono">{{ row.duration }}</td>
+                                <td class="mono muted">{{ row.server_name }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 
 {% endblock %}

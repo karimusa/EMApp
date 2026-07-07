@@ -48,13 +48,28 @@
 {% endmacro %}
 
 {% macro step_card(step, is_admin) %}
-    <article class="step-card step-card--{{ step.execution_status|lower }}">
+    <article class="step-card step-card--{{ step.execution_status|lower }}"
+             tabindex="0" role="button" aria-label="View details for {{ step.step_name }}"
+             data-step-id="{{ step.step_id }}"
+             data-step-name="{{ step.step_name }}"
+             data-name="{{ step.step_name|lower }}"
+             data-order="{{ '%02d'|format(step.step_order) }}"
+             data-phase="{{ step.phase }}"
+             data-server="{{ step.server_name }}"
+             data-exec="{{ step.execution_status|lower }}"
+             data-val="{{ step.validation_status|lower }}"
+             data-message="{{ step.last_message }}"
+             data-exec-proc="{{ step.execute_proc_name }}"
+             data-val-proc="{{ step.validate_proc_name }}"
+             data-last-run="{{ step.last_run_time }}"
+             data-duration="{{ step.duration }}">
         <div class="step-card-head">
             <span class="step-order">{{ '%02d'|format(step.step_order) }}</span>
             <div class="step-title">
                 <h4>{{ step.step_name }}</h4>
                 <span class="step-server"><i class="bi bi-hdd-network"></i> {{ step.server_name }}</span>
             </div>
+            <button class="step-details-btn" type="button" aria-label="Details" title="Details"><i class="bi bi-info-circle"></i></button>
         </div>
 
         <div class="step-badges">
