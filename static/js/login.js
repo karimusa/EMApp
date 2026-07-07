@@ -19,3 +19,15 @@ document.getElementById("loginForm")?.addEventListener("submit", function (event
     btn.querySelector(".btn-text")?.classList.add("d-none");
     btn.querySelector(".btn-loading")?.classList.remove("d-none");
 });
+
+// Password visibility toggle
+document.getElementById("passwordToggle")?.addEventListener("click", function () {
+    const input = document.getElementById("password");
+    const icon = this.querySelector("i");
+    if (!input) return;
+    const show = input.type === "password";
+    input.type = show ? "text" : "password";
+    icon?.classList.toggle("bi-eye", !show);
+    icon?.classList.toggle("bi-eye-slash", show);
+    this.setAttribute("aria-label", show ? "Hide password" : "Show password");
+});
