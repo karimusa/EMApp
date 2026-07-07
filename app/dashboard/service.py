@@ -38,12 +38,20 @@ class DashboardService:
     def get_dashboard(self) -> dict[str, Any]:
         job_steps = mock_data.get_job_steps()
         step_runs = mock_data.get_step_runs()
+        validations = mock_data.get_validation_results()
 
-        cards = [self._build_card(step, step_runs.get(step["step_id"], {})) for step in job_steps]
+        cards = [
+            self._build_card(
+                step,
+                step_runs.get(step["step_id"], {}),
+                validations.get(step["step_id"], {}),
+            )
+            for step in job_steps
+        ]
 
         phases = []
         for phase in mock_data.PHASES:
-            phase_cards = [c for c in cards if c["phase"] == phase["key"]]
+            phase_cards = [c for c in cards if c["phase_code"] == phase["key"]]
             completed = sum(1 for c in phase_cards if c["execution_status"] == "Success")
             phases.append(
                 {
@@ -64,12 +72,14 @@ class DashboardService:
             "active_connection": self.connections.get_active(),
         }
 
-    def _build_card(self, step: dict[str, Any], run: dict[str, Any]) -> dict[str, Any]:
+    def _build_card(
+        self, step: dict[str, Any], run: dict[str, Any], validation: dict[str, Any]
+    ) -> dict[str, Any]:
         return {
             "step_id": step["step_id"],
             "step_order": step["step_order"],
             "step_name": step["step_name"],
-            "phase": step["phase"],
+            "phase_code": step["phase_code"],
             "server_name": step["server_name"],
             "execute_proc_name": step["execute_proc_name"],
             "validate_proc_name": step["validate_proc_name"],
@@ -81,6 +91,7 @@ class DashboardService:
             "last_message": run.get("last_message", ""),
             "last_run_time": run.get("completed_at") or run.get("started_at") or "—",
             "duration": _format_duration(run.get("duration_seconds")),
+            "validation": validation,
         }
 
     def get_agent_jobs(self) -> dict[str, Any]:

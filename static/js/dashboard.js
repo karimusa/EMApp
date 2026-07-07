@@ -159,6 +159,19 @@
         const src = card.querySelector(".step-badges");
         if (badges && src) badges.innerHTML = src.innerHTML;
 
+        // Validation result contract row.
+        setText("stepModalValLog", card.dataset.valLog);
+        setText("stepModalValTime", card.dataset.valTime);
+        setText("stepModalValExpected", card.dataset.valExpected);
+        setText("stepModalValMatched", card.dataset.valMatched);
+        setText("stepModalValResult", card.dataset.valResult);
+        const valStatusEl = document.getElementById("stepModalValStatus");
+        if (valStatusEl) {
+            const vs = card.dataset.valstatus || "—";
+            valStatusEl.textContent = vs;
+            valStatusEl.className = "val-status-pill val-status-pill--" + vs.toLowerCase();
+        }
+
         // Link to the SQL Agent job this step launches (if any).
         const jobLink = document.getElementById("stepModalJobLink");
         if (jobLink) {

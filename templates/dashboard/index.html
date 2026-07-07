@@ -218,6 +218,20 @@
                     <span>View SQL Agent job: <strong id="stepModalJobName"></strong></span>
                     <i class="bi bi-arrow-right"></i>
                 </a>
+
+                <div class="validation-panel">
+                    <div class="validation-panel-head">
+                        <span><i class="bi bi-patch-check"></i> Validation result</span>
+                        <span class="val-status-pill" id="stepModalValStatus">—</span>
+                    </div>
+                    <dl class="modal-facts">
+                        <div><dt>Latest log status</dt><dd id="stepModalValLog">—</dd></div>
+                        <div><dt>Validation time</dt><dd class="mono" id="stepModalValTime">—</dd></div>
+                        <div><dt>Expected</dt><dd id="stepModalValExpected">—</dd></div>
+                        <div><dt>Matched</dt><dd id="stepModalValMatched">—</dd></div>
+                    </dl>
+                    <p class="validation-result-msg" id="stepModalValResult">—</p>
+                </div>
             </div>
             {% if nav_is_admin %}
             <div class="modal-foot">

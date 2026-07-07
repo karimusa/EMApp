@@ -54,7 +54,7 @@
              data-step-name="{{ step.step_name }}"
              data-name="{{ step.step_name|lower }}"
              data-order="{{ '%02d'|format(step.step_order) }}"
-             data-phase="{{ step.phase }}"
+             data-phase="{{ step.phase_code }}"
              data-server="{{ step.server_name }}"
              data-exec="{{ step.execution_status|lower }}"
              data-val="{{ step.validation_status|lower }}"
@@ -64,7 +64,13 @@
              data-last-run="{{ step.last_run_time }}"
              data-duration="{{ step.duration }}"
              data-agent-job="{{ step.agent_job_name or '' }}"
-             data-agent-job-key="{{ step.agent_job_key or '' }}">
+             data-agent-job-key="{{ step.agent_job_key or '' }}"
+             data-valstatus="{{ step.validation.ValidationStatus or '' }}"
+             data-val-log="{{ step.validation.LatestLogStatus or '' }}"
+             data-val-expected="{{ step.validation.ExpectedItem or '' }}"
+             data-val-matched="{{ step.validation.MatchedItem or '' }}"
+             data-val-result="{{ step.validation.ResultMessage or '' }}"
+             data-val-time="{{ step.validation.ValidationTime or '' }}">
         <div class="step-card-head">
             <span class="step-order">{{ '%02d'|format(step.step_order) }}</span>
             <div class="step-title">
