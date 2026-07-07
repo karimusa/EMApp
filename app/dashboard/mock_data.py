@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, NamedTuple
 
 from werkzeug.security import generate_password_hash
 
@@ -161,179 +161,186 @@ def get_jobs() -> list[dict[str, Any]]:
     ]
 
 
-# ---------------------------------------------------------------------------
-# Internal step catalogue — real proc contract.
-#
-# Each tuple: (step_name, execute_proc, validate_proc, execution_status,
-#              validation_status, duration_seconds, last_message, connection_name)
-# * execute_proc / validate_proc are the real proc names (validate follows the
-#   newer usp_validate_me_XX_* pattern; email/orchestration procs use the
-#   orchestration schema).
-# * connection_name references orchestration.app_connections.connection_name.
-# ---------------------------------------------------------------------------
-_STEPS: dict[str, list[tuple[str, str, str, str, str, int | None, str, str]]] = {
-    "PRE": [
-        ("Send Start Email",
-         "orchestration.sp_send_month_end_start_email",
-         "orchestration.sp_validate_month_end_start_email",
-         "Success", "Passed", 3,
-         "Kickoff notification sent to close distribution list.", "PRIMARY"),
-        ("Backup BI DB",
-         "usp_backup_bi", "usp_validate_backup_bi",
-         "Success", "Passed", 214,
-         "Full backup completed to \\\\bak\\BI\\2025-05.bak.", "PRIMARY"),
-        ("Backup RRAPS DB",
-         "usp_backup_RRAPS", "usp_validate_backup_RRAPS",
-         "Success", "Passed", 331,
-         "Full backup completed (12.4 GB).", "PRIMARY"),
-        ("Backup Warehouse DB",
-         "usp_backup_warehouse", "usp_validate_backup_warehouse",
-         "Success", "Passed", 512,
-         "Full backup completed (48.1 GB).", "PRIMARY"),
-    ],
-    "MAIN": [
-        ("Populate KeyClient",
-         "usp_me_01_populate_keyclient", "usp_validate_me_01_populate_keyclient",
-         "Success", "Passed", 12,
-         "1,284 KeyClient rows staged.", "PRIMARY"),
-        ("Backup BigFish Tables",
-         "usp_me_02_backup_bigfish_tables", "usp_validate_me_02_backup_bigfish_tables",
-         "Success", "Passed", 8,
-         "6 BigFish tables snapshotted.", "PRIMARY"),
-        ("Run BigFish Load Job",
-         "usp_me_03_run_bigfish_job", "usp_validate_me_03_run_bigfish_job",
-         "Success", "Passed", 225,
-         "BigFish load agent job succeeded.", "PRIMARY"),
-        ("Populate BigFish Tables",
-         "usp_me_04_populate_bigfish_tables", "usp_validate_me_04_populate_bigfish_tables",
-         "Success", "Passed", 34,
-         "BigFish fact tables populated.", "PRIMARY"),
-        ("Validate BigFish Dashboard",
-         "usp_me_05_validate_bigfish_dashboard", "usp_validate_me_05_validate_bigfish_dashboard",
-         "Success", "Passed", 15,
-         "Dashboard row counts match source.", "PRIMARY"),
-        ("Populate Quadrant Tables",
-         "usp_me_06_populate_quadrant_tables", "usp_validate_me_06_populate_quadrant_tables",
-         "Success", "Passed", 22,
-         "Quadrant tables populated.", "PRIMARY"),
-        ("Run Azure Job",
-         "usp_me_07_run_azure_pshr_job", "usp_validate_me_07_run_azure_pshr_job",
-         "Success", "Passed", 138,
-         "Azure Agent job completed on the remote server.", "REMOTE_SQL"),
-        ("Run CompTaskForce Job",
-         "usp_me_08_run_comptaskforce_job", "usp_validate_me_08_run_comptaskforce_job",
-         "Success", "Passed", 126,
-         "CompTaskForce job completed.", "PRIMARY"),
-        ("Fix Employee Role Data",
-         "usp_me_09_fix_employee_role_data", "usp_validate_me_09_fix_employee_role_data",
-         "Success", "Failed", 16,
-         "Executed, but 3 employees still missing a role mapping.", "PRIMARY"),
-        ("Validate Measurement Dashboard",
-         "usp_me_10_validate_measurement_dashboard",
-         "usp_validate_me_10_validate_measurement_dashboard",
-         "Success", "Passed", 11,
-         "Measurement dashboard totals reconciled.", "PRIMARY"),
-    ],
-    "BI": [
-        ("Insert AsOfDate",
-         "usp_me_11_insert_asofdate_rraps", "usp_validate_me_11_insert_asofdate_rraps",
-         "Success", "Passed", 2,
-         "As-of date set to 2025-05-31.", "PRIMARY"),
-        ("Load PeopleSoft Revenue",
-         "usp_me_12_load_peoplesoft_revenue", "usp_validate_me_12_load_peoplesoft_revenue",
-         "Success", "Passed", 174,
-         "PeopleSoft revenue loaded (58,220 rows).", "PRIMARY"),
-        ("Load WIP Tables",
-         "usp_me_13_load_wip_tables", "usp_validate_me_13_load_wip_tables",
-         "Success", "Passed", 96,
-         "WIP tables loaded.", "PRIMARY"),
-        ("Check Consultant Workload",
-         "usp_me_14_check_and_load_consultant_workload",
-         "usp_validate_me_14_check_and_load_consultant_workload",
-         "Success", "Passed", 14,
-         "Workload thresholds within tolerance.", "PRIMARY"),
-        ("Run OfficeFull Model",
-         "usp_me_15_run_officefull_model", "usp_validate_me_15_run_officefull_model",
-         "Success", "Passed", 402,
-         "OfficeFull tabular model processed.", "PRIMARY"),
-        ("Run BI Finance Job",
-         "usp_me_16_run_bi_finance_job", "usp_validate_me_16_run_bi_finance_job",
-         "Success", "Passed", 251,
-         "BI finance job succeeded.", "PRIMARY"),
-        ("Check Employee Role Data",
-         "usp_me_17_check_employee_role_data", "usp_validate_me_17_check_employee_role_data",
-         "Success", "Passed", 9,
-         "Role data check passed.", "PRIMARY"),
-        ("Consultant Quadrant Data Load",
-         "usp_me_18_consultant_quadrant_data_load",
-         "usp_validate_me_18_consultant_quadrant_data_load",
-         "Running", "Pending", None,
-         "Loading consultant quadrant data…", "PRIMARY"),
-        ("Area Manager Dashboard Load",
-         "usp_me_19_area_manager_dashboard_load", "usp_validate_me_19_area_manager_dashboard_load",
-         "Pending", "Pending", None,
-         "Waiting for upstream step to complete.", "PRIMARY"),
-        ("Insert Historical Tables",
-         "usp_me_20_insert_historical_tables", "usp_validate_me_20_insert_historical_tables",
-         "Pending", "Pending", None,
-         "Queued.", "PRIMARY"),
-    ],
-    "DAY5": [
-        ("Refresh PeopleSoft Revenue",
-         "usp_me_d5_01_refresh_peoplesoft_revenue",
-         "usp_validate_me_d5_01_refresh_peoplesoft_revenue",
-         "Pending", "Pending", None,
-         "Scheduled for day-5 refresh.", "PRIMARY"),
-        ("Run OfficeFull Model",
-         "usp_me_d5_02_run_officefull_model", "usp_validate_me_d5_02_run_officefull_model",
-         "Pending", "Pending", None,
-         "Queued.", "PRIMARY"),
-    ],
-    "POST": [
-        ("Send Complete Email",
-         "orchestration.sp_send_month_end_complete_email",
-         "orchestration.sp_validate_month_end_complete_email",
-         "Pending", "Pending", None,
-         "Sends when all phases succeed.", "PRIMARY"),
-    ],
-}
+class StepDef(NamedTuple):
+    """One frozen row of the proc-mapping contract (mirrors job_steps)."""
 
-# Execute procs that trigger a monitored SQL Agent job (the trigger points).
-AGENT_JOB_BY_PROC: dict[str, str] = {
-    "usp_me_03_run_bigfish_job": "zz-Load Big Fish Dashboard Data 2016",
-    "usp_me_07_run_azure_pshr_job": "Azure_PSHRDataLoads",
-    "usp_me_08_run_comptaskforce_job": "zz_Load CompTaskForce Data 2016",
+    phase_code: str
+    step_name: str
+    connection_name: str          # -> orchestration.app_connections.connection_name
+    execute_proc: str
+    validate_proc: str
+    agent_job: str | None = None  # monitored SQL Agent job this step launches
+
+
+# =========================================================================
+# FROZEN PROC-MAPPING REGISTRY — the SINGLE source of truth for each step's
+# phase_code, server (via connection), execute proc, validation proc, and the
+# SQL Agent job it launches. Do not redefine these mappings anywhere else.
+# Validation names use the newer usp_validate_* pattern; email procs use the
+# orchestration schema. Mirrors orchestration.job_steps; mutable run state is
+# kept separately in _RUNTIME (mirrors orchestration.step_runs).
+# =========================================================================
+STEP_REGISTRY: list[StepDef] = [
+    # ---- PRE ----
+    StepDef("PRE", "Send Start Email", "PRIMARY",
+            "orchestration.sp_send_month_end_start_email",
+            "orchestration.sp_validate_month_end_start_email"),
+    StepDef("PRE", "Backup BI DB", "PRIMARY",
+            "usp_backup_bi", "usp_validate_backup_bi"),
+    StepDef("PRE", "Backup RRAPS DB", "PRIMARY",
+            "usp_backup_RRAPS", "usp_validate_backup_RRAPS"),
+    StepDef("PRE", "Backup Warehouse DB", "PRIMARY",
+            "usp_backup_warehouse", "usp_validate_backup_warehouse"),
+    # ---- MAIN ----
+    StepDef("MAIN", "Populate KeyClient", "PRIMARY",
+            "usp_me_01_populate_keyclient", "usp_validate_me_01_populate_keyclient"),
+    StepDef("MAIN", "Backup BigFish Tables", "PRIMARY",
+            "usp_me_02_backup_bigfish_tables", "usp_validate_me_02_backup_bigfish_tables"),
+    StepDef("MAIN", "Run BigFish Load Job", "PRIMARY",
+            "usp_me_03_run_bigfish_job", "usp_validate_me_03_run_bigfish_job",
+            "zz-Load Big Fish Dashboard Data 2016"),
+    StepDef("MAIN", "Populate BigFish Tables", "PRIMARY",
+            "usp_me_04_populate_bigfish_tables", "usp_validate_me_04_populate_bigfish_tables"),
+    StepDef("MAIN", "Validate BigFish Dashboard", "PRIMARY",
+            "usp_me_05_validate_bigfish_dashboard",
+            "usp_validate_me_05_validate_bigfish_dashboard"),
+    StepDef("MAIN", "Populate Quadrant Tables", "PRIMARY",
+            "usp_me_06_populate_quadrant_tables", "usp_validate_me_06_populate_quadrant_tables"),
+    StepDef("MAIN", "Run Azure Job", "REMOTE_SQL",
+            "usp_me_07_run_azure_pshr_job", "usp_validate_me_07_run_azure_pshr_job",
+            "Azure_PSHRDataLoads"),
+    StepDef("MAIN", "Run CompTaskForce Job", "PRIMARY",
+            "usp_me_08_run_comptaskforce_job", "usp_validate_me_08_run_comptaskforce_job",
+            "zz_Load CompTaskForce Data 2016"),
+    StepDef("MAIN", "Fix Employee Role Data", "PRIMARY",
+            "usp_me_09_fix_employee_role_data", "usp_validate_me_09_fix_employee_role_data"),
+    StepDef("MAIN", "Validate Measurement Dashboard", "PRIMARY",
+            "usp_me_10_validate_measurement_dashboard",
+            "usp_validate_me_10_validate_measurement_dashboard"),
+    # ---- BI ----
+    StepDef("BI", "Insert AsOfDate", "PRIMARY",
+            "usp_me_11_insert_asofdate_rraps", "usp_validate_me_11_insert_asofdate_rraps"),
+    StepDef("BI", "Load PeopleSoft Revenue", "PRIMARY",
+            "usp_me_12_load_peoplesoft_revenue", "usp_validate_me_12_load_peoplesoft_revenue"),
+    StepDef("BI", "Load WIP Tables", "PRIMARY",
+            "usp_me_13_load_wip_tables", "usp_validate_me_13_load_wip_tables"),
+    StepDef("BI", "Check Consultant Workload", "PRIMARY",
+            "usp_me_14_check_and_load_consultant_workload",
+            "usp_validate_me_14_check_and_load_consultant_workload",
+            "RRAPS_Populate Consultant_workload table - Monthly Load"),
+    StepDef("BI", "Run OfficeFull Model", "PRIMARY",
+            "usp_me_15_run_officefull_model", "usp_validate_me_15_run_officefull_model"),
+    StepDef("BI", "Run BI Finance Job", "PRIMARY",
+            "usp_me_16_run_bi_finance_job", "usp_validate_me_16_run_bi_finance_job",
+            "BI_FINANCE_DATA"),
+    StepDef("BI", "Check Employee Role Data", "PRIMARY",
+            "usp_me_17_check_employee_role_data", "usp_validate_me_17_check_employee_role_data"),
+    StepDef("BI", "Consultant Quadrant Data Load", "PRIMARY",
+            "usp_me_18_consultant_quadrant_data_load",
+            "usp_validate_me_18_consultant_quadrant_data_load"),
+    StepDef("BI", "Area Manager Dashboard Load", "PRIMARY",
+            "usp_me_19_area_manager_dashboard_load",
+            "usp_validate_me_19_area_manager_dashboard_load"),
+    StepDef("BI", "Insert Historical Tables", "PRIMARY",
+            "usp_me_20_insert_historical_tables", "usp_validate_me_20_insert_historical_tables"),
+    # ---- DAY5 ----
+    StepDef("DAY5", "Refresh PeopleSoft Revenue", "PRIMARY",
+            "usp_me_d5_01_refresh_peoplesoft_revenue",
+            "usp_validate_me_d5_01_refresh_peoplesoft_revenue"),
+    StepDef("DAY5", "Run OfficeFull Model", "PRIMARY",
+            "usp_me_d5_02_run_officefull_model", "usp_validate_me_d5_02_run_officefull_model"),
+    # ---- POST ----
+    StepDef("POST", "Send Complete Email", "PRIMARY",
+            "orchestration.sp_send_month_end_complete_email",
+            "orchestration.sp_validate_month_end_complete_email"),
+]
+
+# Mock runtime overlay — replaced by orchestration.step_runs + db_execution_log
+# later. Keyed by execute proc (unique):
+# (execution_status, validation_status, duration_seconds, last_message)
+_RUNTIME: dict[str, tuple[str, str, int | None, str]] = {
+    "orchestration.sp_send_month_end_start_email":
+        ("Success", "Passed", 3, "Kickoff notification sent to close distribution list."),
+    "usp_backup_bi":
+        ("Success", "Passed", 214, "Full backup completed to \\\\bak\\BI\\2025-05.bak."),
+    "usp_backup_RRAPS":
+        ("Success", "Passed", 331, "Full backup completed (12.4 GB)."),
+    "usp_backup_warehouse":
+        ("Success", "Passed", 512, "Full backup completed (48.1 GB)."),
+    "usp_me_01_populate_keyclient":
+        ("Success", "Passed", 12, "1,284 KeyClient rows staged."),
+    "usp_me_02_backup_bigfish_tables":
+        ("Success", "Passed", 8, "6 BigFish tables snapshotted."),
+    "usp_me_03_run_bigfish_job":
+        ("Success", "Passed", 225, "BigFish load agent job succeeded."),
+    "usp_me_04_populate_bigfish_tables":
+        ("Success", "Passed", 34, "BigFish fact tables populated."),
+    "usp_me_05_validate_bigfish_dashboard":
+        ("Success", "Passed", 15, "Dashboard row counts match source."),
+    "usp_me_06_populate_quadrant_tables":
+        ("Success", "Passed", 22, "Quadrant tables populated."),
+    "usp_me_07_run_azure_pshr_job":
+        ("Success", "Passed", 138, "Azure Agent job completed on the remote server."),
+    "usp_me_08_run_comptaskforce_job":
+        ("Success", "Passed", 126, "CompTaskForce job completed."),
+    "usp_me_09_fix_employee_role_data":
+        ("Success", "Failed", 16, "Executed, but 3 employees still missing a role mapping."),
+    "usp_me_10_validate_measurement_dashboard":
+        ("Success", "Passed", 11, "Measurement dashboard totals reconciled."),
+    "usp_me_11_insert_asofdate_rraps":
+        ("Success", "Passed", 2, "As-of date set to 2025-05-31."),
+    "usp_me_12_load_peoplesoft_revenue":
+        ("Success", "Passed", 174, "PeopleSoft revenue loaded (58,220 rows)."),
+    "usp_me_13_load_wip_tables":
+        ("Success", "Passed", 96, "WIP tables loaded."),
     "usp_me_14_check_and_load_consultant_workload":
-        "RRAPS_Populate Consultant_workload table - Monthly Load",
-    "usp_me_16_run_bi_finance_job": "BI_FINANCE_DATA",
+        ("Success", "Passed", 14, "Workload thresholds within tolerance."),
+    "usp_me_15_run_officefull_model":
+        ("Success", "Passed", 402, "OfficeFull tabular model processed."),
+    "usp_me_16_run_bi_finance_job":
+        ("Success", "Passed", 251, "BI finance job succeeded."),
+    "usp_me_17_check_employee_role_data":
+        ("Success", "Passed", 9, "Role data check passed."),
+    "usp_me_18_consultant_quadrant_data_load":
+        ("Running", "Pending", None, "Loading consultant quadrant data…"),
+    "usp_me_19_area_manager_dashboard_load":
+        ("Pending", "Pending", None, "Waiting for upstream step to complete."),
+    "usp_me_20_insert_historical_tables":
+        ("Pending", "Pending", None, "Queued."),
+    "usp_me_d5_01_refresh_peoplesoft_revenue":
+        ("Pending", "Pending", None, "Scheduled for day-5 refresh."),
+    "usp_me_d5_02_run_officefull_model":
+        ("Pending", "Pending", None, "Queued."),
+    "orchestration.sp_send_month_end_complete_email":
+        ("Pending", "Pending", None, "Sends when all phases succeed."),
 }
 
 
 def get_job_steps() -> list[dict[str, Any]]:
-    """Rows shaped like ``orchestration.job_steps`` (server resolved from connections)."""
+    """Rows shaped like ``orchestration.job_steps``, derived from STEP_REGISTRY.
+
+    Server names are resolved from ``app_connections`` (never hardcoded).
+    """
     rows: list[dict[str, Any]] = []
-    step_id = 1
-    for phase in PHASES:
-        phase_key = phase["key"]
-        for order, entry in enumerate(_STEPS[phase_key], start=1):
-            step_name, execute_proc, validate_proc, _e, _v, _d, _m, connection_name = entry
-            agent_job = AGENT_JOB_BY_PROC.get(execute_proc)
-            rows.append(
-                {
-                    "step_id": step_id,
-                    "job_id": JOB_ID,
-                    "step_name": step_name,
-                    "phase_code": phase_key,
-                    "server_name": _server_for(connection_name),
-                    "step_order": order,
-                    "execute_proc_name": execute_proc,
-                    "validate_proc_name": validate_proc,
-                    "is_enabled": True,
-                    "agent_job_name": agent_job,
-                    "agent_job_key": job_key(agent_job) if agent_job else None,
-                }
-            )
-            step_id += 1
+    order_by_phase: dict[str, int] = {}
+    for step_id, step in enumerate(STEP_REGISTRY, start=1):
+        order = order_by_phase.get(step.phase_code, 0) + 1
+        order_by_phase[step.phase_code] = order
+        rows.append(
+            {
+                "step_id": step_id,
+                "job_id": JOB_ID,
+                "step_name": step.step_name,
+                "phase_code": step.phase_code,
+                "server_name": _server_for(step.connection_name),
+                "step_order": order,
+                "execute_proc_name": step.execute_proc,
+                "validate_proc_name": step.validate_proc,
+                "is_enabled": True,
+                "agent_job_name": step.agent_job,
+                "agent_job_key": job_key(step.agent_job) if step.agent_job else None,
+            }
+        )
     return rows
 
 
@@ -343,32 +350,29 @@ def get_job_steps() -> list[dict[str, Any]]:
 def get_step_runs() -> dict[int, dict[str, Any]]:
     """Per-step runtime state keyed by ``step_id`` (shaped like ``step_runs``)."""
     runs: dict[int, dict[str, Any]] = {}
-    step_id = 1
     elapsed = 0
-    for phase in PHASES:
-        for entry in _STEPS[phase["key"]]:
-            _name, _ep, _vp, exec_status, val_status, duration, message, _conn = entry
-            started_at = None
-            completed_at = None
-            if exec_status in ("Success", "Failed"):
-                started_at = _seconds_after(elapsed)
-                elapsed += (duration or 0) + 5
-                completed_at = _seconds_after(elapsed)
-            elif exec_status == "Running":
-                started_at = _seconds_after(elapsed)
-            runs[step_id] = {
-                "step_run_id": 1000 + step_id,
-                "run_id": RUN_ID,
-                "step_id": step_id,
-                "execution_status": exec_status,
-                "validation_status": val_status,
-                "last_message": message,
-                "duration_seconds": duration,
-                "started_at": started_at,
-                "completed_at": completed_at,
-                "run_by": "admin",
-            }
-            step_id += 1
+    for step_id, step in enumerate(STEP_REGISTRY, start=1):
+        exec_status, val_status, duration, message = _RUNTIME[step.execute_proc]
+        started_at = None
+        completed_at = None
+        if exec_status in ("Success", "Failed"):
+            started_at = _seconds_after(elapsed)
+            elapsed += (duration or 0) + 5
+            completed_at = _seconds_after(elapsed)
+        elif exec_status == "Running":
+            started_at = _seconds_after(elapsed)
+        runs[step_id] = {
+            "step_run_id": 1000 + step_id,
+            "run_id": RUN_ID,
+            "step_id": step_id,
+            "execution_status": exec_status,
+            "validation_status": val_status,
+            "last_message": message,
+            "duration_seconds": duration,
+            "started_at": started_at,
+            "completed_at": completed_at,
+            "run_by": "admin",
+        }
     return runs
 
 
