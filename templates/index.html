@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Home - EMApp{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <h1>Welcome to EMApp</h1>
+    <p class="lead">
+        A modern Python web application for emergency management operations.
+    </p>
+    <div class="status-card">
+        <h2>System Status</h2>
+        <p id="health-status">Checking application health...</p>
+    </div>
+</section>
+{% endblock %}
