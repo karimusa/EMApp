@@ -268,6 +268,64 @@
 }
 .btn-ghost:hover { color: #fff; }
 
+/* ---------------- Connection bar ---------------- */
+.conn-bar {
+    display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+    padding: 0.6rem 0.95rem; margin-bottom: 1.25rem;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    font-size: 0.8rem; color: var(--muted);
+}
+.conn-bar .bi { color: var(--accent); }
+.conn-bar strong { color: #fff; }
+.conn-sep { color: var(--muted-2); }
+.conn-status { margin-left: auto; display: inline-flex; align-items: center; gap: 0.4rem; color: var(--ok); font-weight: 600; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px rgba(34,197,94,0.9); animation: pulseDot 2s ease-in-out infinite; }
+@keyframes pulseDot { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+/* ---------------- Phase timeline ---------------- */
+.timeline {
+    display: flex; align-items: flex-start; gap: 0;
+    padding: 1rem 1.15rem; margin-bottom: 1.5rem;
+    background: linear-gradient(160deg, var(--panel) 0%, var(--bg-2) 100%);
+    border: 1px solid var(--border); border-radius: var(--radius); overflow-x: auto;
+}
+.timeline-phase { display: flex; align-items: center; flex: 1; min-width: 120px; position: relative; }
+.timeline-marker {
+    flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(148,165,198,0.12); color: var(--muted-2);
+    border: 2px solid var(--border-strong); font-size: 0.9rem;
+}
+.timeline-marker .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted-2); }
+.timeline-phase.done .timeline-marker { background: var(--ok-bg); color: var(--ok); border-color: rgba(34,197,94,0.5); }
+.timeline-phase.active .timeline-marker { background: var(--run-bg); color: var(--run); border-color: rgba(56,189,248,0.6); }
+.timeline-phase.active .timeline-marker .bi { animation: spin 1.4s linear infinite; }
+.timeline-body { display: flex; flex-direction: column; margin-left: 0.6rem; line-height: 1.2; }
+.timeline-name { font-size: 0.8rem; font-weight: 700; color: #fff; }
+.timeline-count { font-size: 0.72rem; color: var(--muted); }
+.timeline-connector { flex: 1; height: 2px; margin: 0 0.6rem; background: var(--border-strong); border-radius: 2px; }
+.timeline-phase.done .timeline-connector { background: linear-gradient(90deg, rgba(34,197,94,0.6), var(--border-strong)); }
+
+/* ---------------- Panel row ---------------- */
+.panel-row { display: grid; grid-template-columns: 1fr 1.4fr; gap: 1.25rem; margin-top: 1.75rem; align-items: start; }
+.panel-row .log-panel { margin-top: 0; }
+@media (max-width: 1100px) { .panel-row { grid-template-columns: 1fr; } }
+
+/* ---------------- Users page ---------------- */
+.page-hint { font-size: 0.82rem; color: var(--muted); margin: -0.4rem 0 1.25rem; }
+.page-hint code { color: var(--accent); background: rgba(59,130,246,0.12); padding: 0.05rem 0.35rem; border-radius: 5px; }
+.ta-right { text-align: right; }
+.user-cell { display: inline-flex; align-items: center; gap: 0.6rem; }
+.user-cell strong { color: #fff; }
+.avatar--sm { width: 28px; height: 28px; border-radius: 8px; font-size: 0.75rem; }
+.role-tag { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.72rem; font-weight: 700; padding: 0.2rem 0.55rem; border-radius: 999px; }
+.role-tag--admin { color: var(--accent); background: rgba(59,130,246,0.16); }
+.role-tag--ro { color: var(--muted); background: rgba(148,165,198,0.12); }
+.btn-icon-sm { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--panel); color: var(--muted); cursor: pointer; font-size: 0.85rem; margin-left: 0.3rem; transition: all 0.15s ease; }
+.btn-icon-sm:hover { color: #fff; border-color: var(--blue-bright); }
+.btn-icon-sm--danger:hover { color: var(--err); border-color: var(--err); }
+.users-table td { vertical-align: middle; }
+
 /* ---------------- Stat cards ---------------- */
 .stat-grid {
     display: grid;

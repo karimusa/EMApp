@@ -55,6 +55,9 @@
         }, 3200);
     }
 
+    // Shared so other console pages (e.g. Users) can reuse the same toast.
+    window.rraToast = toast;
+
     // ---- Action buttons (not implemented in Step 2) ----
     document.querySelectorAll(".btn-run").forEach(function (btn) {
         btn.addEventListener("click", function () {

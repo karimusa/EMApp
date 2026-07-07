@@ -11,6 +11,11 @@
     </span>
 {% endmacro %}
 
+{% macro run_status_badge(status) %}
+    {% set cls = {'In Progress': 'run', 'Completed': 'ok', 'Failed': 'err'}.get(status, 'info') %}
+    <span class="log-badge log-badge--{{ cls }}">{{ status }}</span>
+{% endmacro %}
+
 {% macro stat_card(label, value, icon, tone, sub) %}
     <div class="stat-card">
         <div class="stat-top">

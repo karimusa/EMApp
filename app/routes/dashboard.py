@@ -5,7 +5,7 @@ implemented yet (Steps 6–7); the Run/Validate controls are rendered for Admin
 users only but do not trigger any logic.
 """
 
-from flask import Blueprint, render_template, session
+from flask import Blueprint, render_template
 
 from app.auth.decorators import login_required
 from app.dashboard.service import DashboardService
@@ -21,9 +21,9 @@ def index():
     return render_template(
         "dashboard/index.html",
         run=data["run"],
+        metrics=data["metrics"],
         phases=data["phases"],
         execution_log=data["execution_log"],
-        is_admin=session.get("role") == "Admin",
-        username=session.get("username"),
-        role=session.get("role"),
+        run_history=data["run_history"],
+        active_connection=data["active_connection"],
     )

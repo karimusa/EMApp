@@ -1,0 +1,77 @@
+{% extends "console_base.html" %}
+{% set active_nav = 'users' %}
+{% block title %}Users — RRA Month-End Orchestration{% endblock %}
+{% block topbar_title %}User Management{% endblock %}
+
+{% block page %}
+
+    <div class="content-head">
+        <div class="content-title">
+            <h2>Users</h2>
+            <span class="run-pill run-pill--running"><i class="bi bi-shield-lock"></i> Admin only</span>
+        </div>
+        <button class="btn-primary" type="button" id="addUserBtn">
+            <i class="bi bi-person-plus-fill"></i> Add User
+        </button>
+    </div>
+
+    <p class="page-hint">Backed by <code>dbo.users</code>. Roles control access: Admins can run and validate
+        steps and manage users; Read-only users can view the dashboard, logs, and job history.</p>
+
+    <section class="log-panel">
+        <div class="log-table-wrap">
+            <table class="log-table users-table">
+                <thead>
+                    <tr>
+                        <th>ID</th><th>Username</th><th>Role</th><th>Status</th>
+                        <th>Created</th><th>Updated</th><th class="ta-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in users %}
+                    <tr>
+                        <td class="mono">{{ u.user_id }}</td>
+                        <td>
+                            <span class="user-cell">
+                                <span class="avatar avatar--sm">{{ (u.username or '?')[0]|upper }}</span>
+                                <strong>{{ u.username }}</strong>
+                            </span>
+                        </td>
+                        <td>
+                            {% if u.role == 'Admin' %}
+                            <span class="role-tag role-tag--admin"><i class="bi bi-shield-fill"></i> Admin</span>
+                            {% else %}
+                            <span class="role-tag role-tag--ro"><i class="bi bi-eye-fill"></i> ReadOnly</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if u.is_active %}
+                            <span class="log-badge log-badge--ok">Active</span>
+                            {% else %}
+                            <span class="log-badge log-badge--err">Disabled</span>
+                            {% endif %}
+                        </td>
+                        <td class="mono muted">{{ u.created_at }}</td>
+                        <td class="mono muted">{{ u.updated_at or '—' }}</td>
+                        <td class="ta-right">
+                            <button class="btn-icon-sm" type="button" title="Edit"
+                                    data-user-action="Edit" data-user-name="{{ u.username }}"><i class="bi bi-pencil"></i></button>
+                            <button class="btn-icon-sm btn-icon-sm--danger" type="button"
+                                    title="{{ 'Disable' if u.is_active else 'Enable' }}"
+                                    data-user-action="{{ 'Disable' if u.is_active else 'Enable' }}"
+                                    data-user-name="{{ u.username }}">
+                                <i class="bi {{ 'bi-person-x' if u.is_active else 'bi-person-check' }}"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/users.js') }}"></script>
+{% endblock %}

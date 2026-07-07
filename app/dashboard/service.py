@@ -1,9 +1,14 @@
 """Dashboard service — assembles the view model consumed by the template.
 
-This is the seam between the UI and the data source. Today it reads the mock
-rows in :mod:`app.dashboard.mock_data`; in a later step the same methods will
-read ``orchestration.job_steps`` / ``step_runs`` / ``db_execution_log`` from the
-database and return the identical shapes. No execution logic lives here.
+Reads the mock rows in :mod:`app.dashboard.mock_data` today; the same methods
+will read the live ``orchestration.*`` tables later and return identical shapes.
+No execution logic lives here.
+
+Data sources per the schema:
+* summary cards -> ``orchestration.run_metrics``
+* step cards    -> ``orchestration.job_steps`` + ``orchestration.step_runs``
+* log panel     -> ``orchestration.db_execution_log``
+* run history   -> ``orchestration.job_runs``
 """
 
 from __future__ import annotations
@@ -11,6 +16,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.dashboard import mock_data
+from app.dashboard.connections import ConnectionService
 
 
 def _format_duration(seconds: int | None) -> str:
@@ -25,6 +31,9 @@ def _format_duration(seconds: int | None) -> str:
 
 class DashboardService:
     """Builds the operations-console view model for a single run."""
+
+    def __init__(self) -> None:
+        self.connections = ConnectionService()
 
     def get_dashboard(self) -> dict[str, Any]:
         job_steps = mock_data.get_job_steps()
@@ -47,9 +56,12 @@ class DashboardService:
             )
 
         return {
-            "run": self._build_run_header(cards),
+            "run": self._build_run_header(),
+            "metrics": mock_data.get_run_metrics(),
             "phases": phases,
             "execution_log": self._build_log(),
+            "run_history": mock_data.get_job_runs(),
+            "active_connection": self.connections.get_active(),
         }
 
     def _build_card(self, step: dict[str, Any], run: dict[str, Any]) -> dict[str, Any]:
@@ -69,26 +81,8 @@ class DashboardService:
             "duration": _format_duration(run.get("duration_seconds")),
         }
 
-    def _build_run_header(self, cards: list[dict[str, Any]]) -> dict[str, Any]:
-        run = dict(mock_data.get_current_run())
-        total = len(cards)
-        success = sum(1 for c in cards if c["execution_status"] == "Success")
-        failed = sum(1 for c in cards if c["execution_status"] == "Failed")
-        running = sum(1 for c in cards if c["execution_status"] == "Running")
-        pending = sum(1 for c in cards if c["execution_status"] in ("Pending", "Skipped"))
-        val_failed = sum(1 for c in cards if c["validation_status"] == "Failed")
-
-        run["totals"] = {
-            "total": total,
-            "success": success,
-            "failed": failed,
-            "running": running,
-            "pending": pending,
-            "validation_failed": val_failed,
-        }
-        run["progress_pct"] = round((success / total) * 100) if total else 0
-        run["success_pct"] = round((success / total) * 100) if total else 0
-        return run
+    def _build_run_header(self) -> dict[str, Any]:
+        return dict(mock_data.get_current_run())
 
     def _build_log(self) -> list[dict[str, Any]]:
         rows = []
