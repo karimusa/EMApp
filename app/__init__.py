@@ -18,15 +18,35 @@ def create_app(config_class=Config):
     app.config.from_object(config_class)
     _configure_logging(app)
 
+    from app.routes.admin import admin_bp
     from app.routes.auth import auth_bp
+    from app.routes.dashboard import dashboard_bp
 
     app.register_blueprint(auth_bp)
+    app.register_blueprint(dashboard_bp)
+    app.register_blueprint(admin_bp)
 
     @app.route("/")
     def root():
         if session.get("user_id"):
             return redirect(url_for("auth.post_login"))
         return redirect(url_for("auth.login"))
+
+    @app.context_processor
+    def inject_nav_globals():
+        connection = None
+        if session.get("user_id"):
+            from app.dashboard.connections import ConnectionService
+
+            connection = ConnectionService().get_active()
+        return {
+            "nav_user": {
+                "username": session.get("username"),
+                "role": session.get("role"),
+            },
+            "nav_is_admin": session.get("role") == "Admin",
+            "nav_connection": connection,
+        }
 
     return app
 

@@ -4,68 +4,153 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign In — RRA Month-End Orchestration</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
 </head>
 <body class="login-body">
-    <div class="login-overlay"></div>
+    <div class="split-layout">
 
-    <div class="login-container">
-        <div class="login-card shadow-lg" role="main">
-            <div class="login-header text-center mb-4">
-                <div class="login-logo mb-3" aria-hidden="true">
-                    <i class="bi bi-diagram-3-fill"></i>
+        <!-- Left: login panel -->
+        <section class="login-panel">
+            <div class="login-card" role="main">
+                <div class="brand">
+                    <div class="brand-mark">RRA</div>
+                    <div class="brand-tagline">Reliable. Relevant. Actionable.</div>
                 </div>
+
                 <h1 class="login-title">RRA Month-End Orchestration</h1>
-                <p class="login-subtitle">Operations Console</p>
+                <p class="login-subtitle">Enterprise Operations Console</p>
+
+                <div class="divider">
+                    <span class="divider-icon"><i class="bi bi-shield-lock-fill"></i></span>
+                </div>
+                <p class="signin-prompt">Sign in to continue</p>
+
+                <div id="loginAlert" class="{% if not error %}d-none{% endif %}">
+                    <div class="alert login-alert" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <span id="loginAlertText">{{ error or '' }}</span>
+                    </div>
+                </div>
+
+                <form id="loginForm" method="POST" action="{{ url_for('auth.login') }}" novalidate>
+                    <div class="field-group">
+                        <label for="username" class="field-label">Username</label>
+                        <div class="field-control">
+                            <i class="bi bi-person field-icon" aria-hidden="true"></i>
+                            <input type="text" class="form-control" id="username" name="username"
+                                   placeholder="Enter your username" required autofocus autocomplete="username">
+                        </div>
+                        <div class="invalid-feedback">Username is required.</div>
+                    </div>
+
+                    <div class="field-group">
+                        <label for="password" class="field-label">Password</label>
+                        <div class="field-control">
+                            <i class="bi bi-lock field-icon" aria-hidden="true"></i>
+                            <input type="password" class="form-control" id="password" name="password"
+                                   placeholder="Enter your password" required autocomplete="current-password">
+                            <button type="button" class="password-toggle" id="passwordToggle"
+                                    aria-label="Show password" tabindex="-1">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                        <div class="invalid-feedback">Password is required.</div>
+                    </div>
+
+                    <div class="form-row">
+                        <label class="remember">
+                            <input type="checkbox" name="remember" id="remember" checked>
+                            <span>Remember me</span>
+                        </label>
+                        <a href="#" class="forgot-link">Forgot password?</a>
+                    </div>
+
+                    <button type="submit" class="login-btn" id="loginBtn">
+                        <span class="btn-text"><i class="bi bi-lock-fill"></i> Sign In</span>
+                        <span class="btn-loading d-none">
+                            <span class="spinner-border spinner-border-sm" role="status"></span>
+                            Signing in…
+                        </span>
+                    </button>
+                </form>
+
+                <div class="login-footnote">
+                    <i class="bi bi-shield-check"></i>
+                    <span>Secure session-based authentication</span>
+                </div>
             </div>
 
-            <div id="loginAlert" class="{% if not error %}d-none{% endif %}">
-                <div class="alert alert-danger py-2 mb-3" role="alert">
-                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                    <span id="loginAlertText">{{ error or '' }}</span>
-                </div>
+            <div class="login-version">
+                <div>RRA Month-End Orchestration &middot; v1.0.0</div>
+                <div>Enterprise Operations Console</div>
+            </div>
+        </section>
+
+        <!-- Right: showcase -->
+        <aside class="showcase-panel">
+            <div class="showcase-particles" aria-hidden="true">
+                <span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span>
             </div>
 
-            <form id="loginForm" method="POST" action="{{ url_for('auth.login') }}" novalidate>
-                <div class="mb-3">
-                    <label for="username" class="form-label">Username</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-person"></i></span>
-                        <input type="text" class="form-control" id="username" name="username"
-                               placeholder="Enter username" required autofocus autocomplete="username">
-                    </div>
-                    <div class="invalid-feedback">Username is required.</div>
+            <div class="security-pill" aria-hidden="true">
+                <i class="bi bi-shield-lock-fill"></i>
+                <span>Enterprise Grade Security</span>
+                <span class="status-dot"></span>
+            </div>
+
+            <div class="showcase-content">
+                <div class="showcase-heading">
+                    <h2>Enterprise Data Operations Platform</h2>
+                    <p>Orchestrate, monitor, and validate your month-end close across SQL Server,
+                       cloud connections, and ETL pipelines — all from one secure console.</p>
                 </div>
 
-                <div class="mb-4">
-                    <label for="password" class="form-label">Password</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                        <input type="password" class="form-control" id="password" name="password"
-                               placeholder="Enter password" required autocomplete="current-password">
-                    </div>
-                    <div class="invalid-feedback">Password is required.</div>
+                <div class="showcase-art">
+                    <img src="{{ url_for('static', filename='images/enterprise_data_platform.png') }}"
+                         alt="Enterprise data operations platform: SQL Server, cloud connectors, ETL pipelines, orchestration engine, dashboards, data warehouse, security and automation">
                 </div>
 
-                <button type="submit" class="btn btn-primary w-100 login-btn" id="loginBtn">
-                    <span class="btn-text"><i class="bi bi-box-arrow-in-right me-1"></i> Sign In</span>
-                    <span class="btn-loading d-none">
-                        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
-                        Signing in...
-                    </span>
-                </button>
-            </form>
+                <ul class="feature-cards" aria-hidden="true">
+                    <li>
+                        <span class="feature-icon"><i class="bi bi-shield-check"></i></span>
+                        <div>
+                            <strong>Secure</strong>
+                            <p>Role-based access and enterprise security</p>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="feature-icon"><i class="bi bi-lightning-charge-fill"></i></span>
+                        <div>
+                            <strong>Automated</strong>
+                            <p>End-to-end month-end orchestration and validation</p>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="feature-icon"><i class="bi bi-graph-up-arrow"></i></span>
+                        <div>
+                            <strong>Monitored</strong>
+                            <p>Real-time monitoring and comprehensive logging</p>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="feature-icon"><i class="bi bi-cloud-check-fill"></i></span>
+                        <div>
+                            <strong>Scalable</strong>
+                            <p>Built for performance, reliability, and growth</p>
+                        </div>
+                    </li>
+                </ul>
 
-            <p class="text-center text-muted small mt-4 mb-0">
-                Secure session-based authentication
-            </p>
-        </div>
+                <p class="showcase-footer">&copy; 2025 RRA Technologies. All rights reserved.</p>
+            </div>
+        </aside>
 
-        <p class="text-center text-white-50 small mt-3 mb-0">
-            Design phase — Step 1 of 10: Login
-        </p>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

@@ -4,26 +4,33 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Signed In — RRA Month-End Orchestration</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
 </head>
 <body class="login-body">
-    <div class="login-overlay"></div>
-    <div class="login-container">
-        <div class="login-card shadow-lg text-center">
-            <div class="login-logo mb-3 mx-auto">
-                <i class="bi bi-check-circle-fill text-success"></i>
+    <div class="centered-panel">
+        <div class="login-card" style="max-width: 420px;">
+            <div class="success-badge" aria-hidden="true">
+                <i class="bi bi-check-circle-fill"></i>
             </div>
             <h2 class="login-title h4">Signed in successfully</h2>
-            <p class="text-muted mb-1">{{ session.username }}</p>
-            <p class="badge bg-secondary mb-4">{{ session.role }}</p>
+            <p class="text-muted mb-2">{{ session.username }}</p>
+            <p class="mb-4"><span class="role-badge">{{ session.role }}</span></p>
             <p class="small text-muted mb-4">
-                The orchestration dashboard is <strong>Step 2</strong> and is not built yet.
+                Welcome back. Continue to the operations console.
             </p>
-            <a href="{{ url_for('auth.logout') }}" class="btn btn-outline-secondary btn-sm">
-                <i class="bi bi-box-arrow-right"></i> Sign Out
-            </a>
+            <div class="d-flex flex-column gap-2 align-items-center">
+                <a href="{{ url_for('dashboard.index') }}" class="login-btn" style="max-width: 260px; text-decoration:none;">
+                    <span class="btn-text"><i class="bi bi-grid-1x2-fill"></i> Open Dashboard</span>
+                </a>
+                <a href="{{ url_for('auth.logout') }}" class="signout-btn">
+                    <i class="bi bi-box-arrow-right"></i> Sign Out
+                </a>
+            </div>
         </div>
     </div>
 </body>

@@ -57,7 +57,7 @@ BEGIN
         step_id             INT IDENTITY(1,1) PRIMARY KEY,
         job_id              INT NOT NULL,
         step_name           NVARCHAR(200) NOT NULL,
-        phase               NVARCHAR(20)  NOT NULL CHECK (phase IN ('PRE','MAIN','BI','DAY5','POST')),
+        phase_code          NVARCHAR(20)  NOT NULL CHECK (phase_code IN ('PRE','MAIN','BI','DAY5','POST')),
         server_name         NVARCHAR(200) NOT NULL,
         step_order          INT NOT NULL DEFAULT 0,
         execute_proc_name   NVARCHAR(500) NOT NULL,
