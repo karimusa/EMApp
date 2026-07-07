@@ -1,4 +1,4 @@
-"""Application entry point — Month-End Orchestration on port 50006."""
+"""Application entry point."""
 
 import os
 
@@ -20,7 +20,7 @@ app = create_app(config_map.get(env, DevelopmentConfig))
 
 if __name__ == "__main__":
     app.run(
-        host=app.config.get("HOST", "0.0.0.0"),
+        host=app.config.get("HOST", "127.0.0.1"),
         port=int(os.environ.get("PORT", app.config.get("PORT", 50006))),
         debug=app.config.get("DEBUG", False),
     )
