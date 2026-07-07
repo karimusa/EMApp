@@ -413,6 +413,8 @@
     background-repeat: no-repeat; background-position: right 0.6rem center;
 }
 .filter-select:focus { outline: none; border-color: var(--blue-bright); }
+.filter-select { min-width: 130px; flex-shrink: 0; }
+.modal-head-actions .filter-select { min-width: 150px; }
 .result-count { font-size: 0.75rem; color: var(--muted-2); white-space: nowrap; }
 
 .steps-empty {
