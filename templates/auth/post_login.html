@@ -21,11 +21,16 @@
             <p class="text-muted mb-2">{{ session.username }}</p>
             <p class="mb-4"><span class="role-badge">{{ session.role }}</span></p>
             <p class="small text-muted mb-4">
-                The orchestration dashboard is <strong>Step 2</strong> and is not built yet.
+                Welcome back. Continue to the operations console.
             </p>
-            <a href="{{ url_for('auth.logout') }}" class="signout-btn">
-                <i class="bi bi-box-arrow-right"></i> Sign Out
-            </a>
+            <div class="d-flex flex-column gap-2 align-items-center">
+                <a href="{{ url_for('dashboard.index') }}" class="login-btn" style="max-width: 260px; text-decoration:none;">
+                    <span class="btn-text"><i class="bi bi-grid-1x2-fill"></i> Open Dashboard</span>
+                </a>
+                <a href="{{ url_for('auth.logout') }}" class="signout-btn">
+                    <i class="bi bi-box-arrow-right"></i> Sign Out
+                </a>
+            </div>
         </div>
     </div>
 </body>
