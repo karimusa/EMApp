@@ -62,7 +62,9 @@
              data-exec-proc="{{ step.execute_proc_name }}"
              data-val-proc="{{ step.validate_proc_name }}"
              data-last-run="{{ step.last_run_time }}"
-             data-duration="{{ step.duration }}">
+             data-duration="{{ step.duration }}"
+             data-agent-job="{{ step.agent_job_name or '' }}"
+             data-agent-job-key="{{ step.agent_job_key or '' }}">
         <div class="step-card-head">
             <span class="step-order">{{ '%02d'|format(step.step_order) }}</span>
             <div class="step-title">
@@ -75,6 +77,9 @@
         <div class="step-badges">
             {{ exec_badge(step.execution_status) }}
             {{ val_badge(step.validation_status) }}
+            {% if step.agent_job_name %}
+            <span class="badge-job" title="Launches SQL Agent job: {{ step.agent_job_name }}"><i class="bi bi-hdd-network"></i> Agent job</span>
+            {% endif %}
         </div>
 
         <p class="step-message">{{ step.last_message }}</p>

@@ -158,6 +158,22 @@
         const badges = document.getElementById("stepModalBadges");
         const src = card.querySelector(".step-badges");
         if (badges && src) badges.innerHTML = src.innerHTML;
+
+        // Link to the SQL Agent job this step launches (if any).
+        const jobLink = document.getElementById("stepModalJobLink");
+        if (jobLink) {
+            const jobKey = card.dataset.agentJobKey;
+            const jobName = card.dataset.agentJob;
+            if (jobKey) {
+                jobLink.href = "/agent-jobs#job-" + jobKey;
+                const nameEl = document.getElementById("stepModalJobName");
+                if (nameEl) nameEl.textContent = jobName;
+                jobLink.classList.remove("d-none");
+            } else {
+                jobLink.classList.add("d-none");
+            }
+        }
+
         openModal(stepModal);
     }
 

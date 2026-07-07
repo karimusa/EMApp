@@ -74,6 +74,8 @@ class DashboardService:
             "execute_proc_name": step["execute_proc_name"],
             "validate_proc_name": step["validate_proc_name"],
             "is_enabled": step["is_enabled"],
+            "agent_job_name": step.get("agent_job_name"),
+            "agent_job_key": step.get("agent_job_key"),
             "execution_status": run.get("execution_status", "Pending"),
             "validation_status": run.get("validation_status", "Pending"),
             "last_message": run.get("last_message", ""),
@@ -82,10 +84,27 @@ class DashboardService:
         }
 
     def get_agent_jobs(self) -> dict[str, Any]:
-        """View model for the SQL Agent jobs page (mock ``usp_GetMonitoredAgentJobs``)."""
+        """View model for the SQL Agent jobs page (mock ``usp_GetMonitoredAgentJobs``).
+
+        Jobs are grouped by server, ordered by the connection registry.
+        """
         jobs = mock_data.get_monitored_agent_jobs()
+
+        groups = []
+        for conn in self.connections.list_connections():
+            server_jobs = [j for j in jobs if j["connection_name"] == conn["connection_name"]]
+            if server_jobs:
+                groups.append(
+                    {
+                        "connection_name": conn["connection_name"],
+                        "server_name": conn["server_name"],
+                        "database_name": conn["database_name"],
+                        "jobs": server_jobs,
+                    }
+                )
+
         return {
-            "jobs": jobs,
+            "groups": groups,
             "active_connection": self.connections.get_active(),
             "totals": {
                 "total": len(jobs),

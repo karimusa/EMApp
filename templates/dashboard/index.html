@@ -213,6 +213,11 @@
                     <div><dt>Execute proc</dt><dd class="mono" id="stepModalExecProc"></dd></div>
                     <div><dt>Validate proc</dt><dd class="mono" id="stepModalValProc"></dd></div>
                 </dl>
+                <a href="#" id="stepModalJobLink" class="modal-joblink d-none">
+                    <i class="bi bi-hdd-network"></i>
+                    <span>View SQL Agent job: <strong id="stepModalJobName"></strong></span>
+                    <i class="bi bi-arrow-right"></i>
+                </a>
             </div>
             {% if nav_is_admin %}
             <div class="modal-foot">

@@ -21,6 +21,7 @@ in the ``app_connections`` rows below and are resolved from there.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -248,6 +249,7 @@ def get_job_steps() -> list[dict[str, Any]]:
         for order, entry in enumerate(_STEPS[phase_key], start=1):
             step_name, _e, _v, _d, _m, connection_name = entry
             slug = _proc_slug(step_name)
+            agent_job = STEP_TO_AGENT_JOB.get(step_name)
             rows.append(
                 {
                     "step_id": step_id,
@@ -259,6 +261,8 @@ def get_job_steps() -> list[dict[str, Any]]:
                     "execute_proc_name": f"orchestration.usp_Execute_{slug}",
                     "validate_proc_name": f"orchestration.usp_Validate_{slug}",
                     "is_enabled": True,
+                    "agent_job_name": agent_job,
+                    "agent_job_key": job_key(agent_job) if agent_job else None,
                 }
             )
             step_id += 1
@@ -418,33 +422,55 @@ def get_job_runs() -> list[dict[str, Any]]:
     ]
 
 
+# ---------------------------------------------------------------------------
+# orchestration.usp_GetMonitoredAgentJobs
+#
+# Only the monitored jobs below are tracked — no unrelated SQL Agent jobs. Job
+# names and the two servers are the only "hardcoded" identifiers, as required.
+# (job_name, connection_name, enabled, last_status, last_run, next_run,
+#  running, alt_name)
+# ---------------------------------------------------------------------------
+_MONITORED_JOBS: list[tuple[str, str, bool, str, str, str | None, bool, str | None]] = [
+    ("zz-Load Big Fish Dashboard Data 2016", "PRIMARY", True, "Succeeded",
+     "05/31 02:19 AM", "06/01 02:15 AM", False, None),
+    ("zz_Load CompTaskForce Data 2016", "PRIMARY", True, "Succeeded",
+     "05/31 02:30 AM", "06/01 02:25 AM", False, None),
+    ("RRAPS_Populate Consultant_workload table - Monthly Load", "PRIMARY", True, "Running",
+     "05/31 02:48 AM", "06/01 02:45 AM", True, None),
+    ("BI_FINANCE_DATA", "PRIMARY", True, "Succeeded",
+     "05/31 02:41 AM", "06/01 02:40 AM", False, None),
+    ("Azure_PSHRDataLoads", "REMOTE_SQL", True, "Succeeded",
+     "05/31 02:22 AM", "06/01 02:20 AM", False, "AzurePSHRDataLoads_TEST"),
+]
+
+# Steps whose execute procedure launches a monitored SQL Agent job.
+# Keyed by step_name; the step's execute_proc_name is the trigger point.
+STEP_TO_AGENT_JOB: dict[str, str] = {
+    "Run BigFish Load Job": "zz-Load Big Fish Dashboard Data 2016",
+    "Run CompTaskForce Job": "zz_Load CompTaskForce Data 2016",
+    "Run BI Finance Job": "BI_FINANCE_DATA",
+    "Consultant Quadrant Data Load": "RRAPS_Populate Consultant_workload table - Monthly Load",
+    "Run Azure Job": "Azure_PSHRDataLoads",
+}
+
+
+def job_key(job_name: str) -> str:
+    """Stable anchor slug for a monitored job name."""
+    return re.sub(r"[^a-z0-9]+", "-", job_name.lower()).strip("-")
+
+
 def get_monitored_agent_jobs() -> list[dict[str, Any]]:
     """Rows shaped like the ``orchestration.usp_GetMonitoredAgentJobs`` result set.
 
     Server names are resolved from ``app_connections`` (never hardcoded).
     """
-    # (name, enabled, last_status, last_run, next_run, running, connection_name)
-    jobs = [
-        ("BigFish Nightly Load", True, "Succeeded",
-         "05/31 01:40 AM", "06/01 01:30 AM", False, "PRIMARY"),
-        ("PeopleSoft Revenue Sync", True, "Succeeded",
-         "05/31 02:05 AM", "06/01 02:00 AM", False, "PRIMARY"),
-        ("OfficeFull Model Refresh", True, "Running",
-         "05/31 02:48 AM", "06/01 02:45 AM", True, "PRIMARY"),
-        ("Warehouse Index Rebuild", True, "Succeeded",
-         "05/30 11:00 PM", "06/01 11:00 PM", False, "PRIMARY"),
-        ("CompTaskForce Export", False, "Canceled",
-         "05/29 03:15 AM", None, False, "PRIMARY"),
-        ("Azure EDM Pipeline", True, "Succeeded",
-         "05/31 02:22 AM", "06/01 02:15 AM", False, "REMOTE_SQL"),
-        ("Azure Metrics Rollup", True, "Failed",
-         "05/31 02:30 AM", "06/01 02:30 AM", False, "REMOTE_SQL"),
-    ]
     rows: list[dict[str, Any]] = []
-    for name, enabled, status, last_run, next_run, running, conn in jobs:
+    for name, conn, enabled, status, last_run, next_run, running, alt in _MONITORED_JOBS:
         rows.append(
             {
                 "job_name": name,
+                "alt_name": alt,
+                "job_key": job_key(name),
                 "is_enabled": enabled,
                 "last_run_status": status,
                 "last_run_time": last_run,

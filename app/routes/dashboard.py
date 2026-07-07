@@ -35,7 +35,7 @@ def agent_jobs():
     data = dashboard_service.get_agent_jobs()
     return render_template(
         "dashboard/agent_jobs.html",
-        jobs=data["jobs"],
+        groups=data["groups"],
         totals=data["totals"],
         active_connection=data["active_connection"],
     )
