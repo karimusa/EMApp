@@ -101,6 +101,17 @@ class DashboardService:
         """
         jobs = mock_data.get_monitored_agent_jobs()
 
+        # Attach the trigger step + execute proc (from the frozen registry).
+        triggers = {
+            s.agent_job: {"step_name": s.step_name, "execute_proc": s.execute_proc}
+            for s in mock_data.STEP_REGISTRY
+            if s.agent_job
+        }
+        for job in jobs:
+            trigger = triggers.get(job["job_name"], {})
+            job["trigger_step"] = trigger.get("step_name")
+            job["trigger_proc"] = trigger.get("execute_proc")
+
         groups = []
         for conn in self.connections.list_connections():
             server_jobs = [j for j in jobs if j["connection_name"] == conn["connection_name"]]

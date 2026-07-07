@@ -34,12 +34,18 @@ def create_app(config_class=Config):
 
     @app.context_processor
     def inject_nav_globals():
+        connection = None
+        if session.get("user_id"):
+            from app.dashboard.connections import ConnectionService
+
+            connection = ConnectionService().get_active()
         return {
             "nav_user": {
                 "username": session.get("username"),
                 "role": session.get("role"),
             },
             "nav_is_admin": session.get("role") == "Admin",
+            "nav_connection": connection,
         }
 
     return app

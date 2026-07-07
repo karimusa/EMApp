@@ -75,7 +75,10 @@
             <span class="step-order">{{ '%02d'|format(step.step_order) }}</span>
             <div class="step-title">
                 <h4>{{ step.step_name }}</h4>
-                <span class="step-server"><i class="bi bi-hdd-network"></i> {{ step.server_name }}</span>
+                <span class="step-sub">
+                    <span class="step-phase-tag">{{ step.phase_code }}</span>
+                    <span class="step-server"><i class="bi bi-hdd-network"></i> {{ step.server_name }}</span>
+                </span>
             </div>
             <button class="step-details-btn" type="button" aria-label="Details" title="Details"><i class="bi bi-info-circle"></i></button>
         </div>

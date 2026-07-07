@@ -50,6 +50,15 @@
             </div>
             <div class="topbar-actions">
                 {% block topbar_actions %}{% endblock %}
+                {% if nav_connection %}
+                <div class="conn-chip" title="Active connection · {{ nav_connection.database_name }}">
+                    <span class="conn-dot"></span>
+                    <div class="conn-chip-text">
+                        <strong>{{ nav_connection.connection_name }}</strong>
+                        <span class="mono">{{ nav_connection.server_name }}</span>
+                    </div>
+                </div>
+                {% endif %}
                 <button class="icon-btn" type="button" aria-label="Notifications">
                     <i class="bi bi-bell"></i><span class="icon-dot"></span>
                 </button>

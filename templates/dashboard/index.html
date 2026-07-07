@@ -32,18 +32,6 @@
         {% endif %}
     </div>
 
-    <!-- Active connection (loaded from orchestration.app_connections) -->
-    <div class="conn-bar">
-        <i class="bi bi-hdd-network-fill"></i>
-        <span>Data source</span>
-        <strong>{{ active_connection.connection_name }}</strong>
-        <span class="conn-sep">·</span>
-        <span class="mono">{{ active_connection.server_name }}</span>
-        <span class="conn-sep">/</span>
-        <span class="mono">{{ active_connection.database_name }}</span>
-        <span class="conn-status"><span class="status-dot"></span> Connected</span>
-    </div>
-
     <!-- Summary cards (orchestration.run_metrics) -->
     <section class="stat-grid">
         <div class="stat-card">

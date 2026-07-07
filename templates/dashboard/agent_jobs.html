@@ -13,10 +13,6 @@
         <button class="btn-ghost" type="button" id="refreshJobsBtn"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
     </div>
 
-    <p class="page-hint">Live status for the monitored jobs only, via
-        <code>orchestration.usp_GetMonitoredAgentJobs</code> on each server. Steps launch these jobs
-        through their execute procedures; open a step to jump straight to its job here.</p>
-
     <section class="stat-grid stat-grid--4">
         <div class="stat-card"><div class="stat-top"><span class="stat-label">Monitored Jobs</span><span class="stat-icon stat-icon--blue"><i class="bi bi-hdd-stack"></i></span></div><div class="stat-value">{{ totals.total }}</div><div class="stat-sub">Across {{ groups|length }} server(s)</div></div>
         <div class="stat-card"><div class="stat-top"><span class="stat-label">Running</span><span class="stat-icon stat-icon--cyan"><i class="bi bi-arrow-repeat"></i></span></div><div class="stat-value">{{ totals.running }}</div><div class="stat-sub">Currently executing</div></div>
@@ -34,7 +30,7 @@
         </div>
         <div class="jobs-grid">
             {% for j in group.jobs %}
-            <article class="job-card" id="job-{{ j.job_key }}">
+            <article class="job-card {% if j.is_running %}job-card--running{% endif %}" id="job-{{ j.job_key }}">
                 <div class="job-card-head">
                     <div class="job-title">
                         <h4>{{ j.job_name }}</h4>
@@ -58,6 +54,8 @@
                 <dl class="job-facts">
                     <div><dt>Last run</dt><dd class="mono">{{ j.last_run_time or '—' }}</dd></div>
                     <div><dt>Next run</dt><dd class="mono">{{ j.next_run_time or '—' }}</dd></div>
+                    <div><dt>Trigger step</dt><dd>{{ j.trigger_step or '—' }}</dd></div>
+                    <div><dt>Execute proc</dt><dd class="mono">{{ j.trigger_proc or '—' }}</dd></div>
                 </dl>
             </article>
             {% endfor %}

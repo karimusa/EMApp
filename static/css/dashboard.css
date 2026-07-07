@@ -223,6 +223,16 @@
     background: var(--err); box-shadow: 0 0 0 2px var(--panel);
 }
 
+.conn-chip {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.35rem 0.7rem; border-radius: 10px;
+    background: var(--panel); border: 1px solid var(--border);
+}
+.conn-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px rgba(34,197,94,0.9); }
+.conn-chip-text { display: flex; flex-direction: column; line-height: 1.2; }
+.conn-chip-text strong { font-size: 0.76rem; color: #fff; }
+.conn-chip-text span { font-size: 0.68rem; color: var(--muted); }
+
 .user-chip { display: flex; align-items: center; gap: 0.55rem; }
 .avatar {
     width: 36px; height: 36px; border-radius: 10px;
@@ -445,13 +455,29 @@
     display: flex; flex-direction: column; gap: 0.7rem;
     transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
-.step-card { cursor: pointer; }
+.step-card { cursor: pointer; min-height: 172px; }
 .step-card:hover { transform: translateY(-2px); box-shadow: 0 16px 30px -18px rgba(0,0,0,0.7); border-color: var(--border-strong); }
 .step-card:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
 .step-card--success { border-left-color: var(--ok); }
-.step-card--running { border-left-color: var(--run); }
 .step-card--failed  { border-left-color: var(--err); }
-.step-card--pending { border-left-color: var(--muted-2); }
+.step-card--pending { border-left-color: var(--muted-2); opacity: 0.9; }
+
+/* Completed steps read as done, not idle */
+.step-card--success .step-order { background: var(--ok-bg); color: var(--ok); }
+
+/* Running step is the strongest state: accent border, glow, pulse */
+.step-card--running {
+    border-left-color: var(--run);
+    border-color: rgba(56,189,248,0.45);
+    background: linear-gradient(160deg, rgba(56,189,248,0.10) 0%, var(--bg-2) 100%);
+    box-shadow: 0 0 0 1px rgba(56,189,248,0.25), 0 18px 34px -20px rgba(56,189,248,0.5);
+    animation: runningPulse 2.4s ease-in-out infinite;
+}
+.step-card--running .step-order { background: var(--run-bg); color: var(--run); }
+@keyframes runningPulse {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(56,189,248,0.25), 0 18px 34px -20px rgba(56,189,248,0.35); }
+    50%      { box-shadow: 0 0 0 1px rgba(56,189,248,0.5), 0 18px 40px -18px rgba(56,189,248,0.7); }
+}
 
 .step-card-head { display: flex; align-items: flex-start; gap: 0.75rem; }
 .step-details-btn {
@@ -467,7 +493,12 @@
     font-weight: 800; font-size: 0.85rem; font-variant-numeric: tabular-nums;
 }
 .step-title { min-width: 0; }
-.step-title h4 { font-size: 0.95rem; font-weight: 700; margin: 0 0 0.15rem; color: #fff; line-height: 1.25; }
+.step-title h4 { font-size: 0.95rem; font-weight: 700; margin: 0 0 0.3rem; color: #fff; line-height: 1.25; }
+.step-sub { display: inline-flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.step-phase-tag {
+    font-size: 0.62rem; font-weight: 800; letter-spacing: 0.05em; color: var(--accent);
+    background: rgba(59,130,246,0.14); padding: 0.1rem 0.4rem; border-radius: 5px;
+}
 .step-server { font-size: 0.72rem; color: var(--muted); display: inline-flex; align-items: center; gap: 0.3rem; }
 
 .step-badges { display: flex; flex-wrap: wrap; gap: 0.4rem; }
@@ -581,6 +612,13 @@
     transition: border-color 0.2s ease, box-shadow 0.3s ease;
 }
 .job-card.highlight { border-color: var(--blue-bright); box-shadow: 0 0 0 3px rgba(37,99,235,0.35); }
+.job-card--running {
+    border-color: rgba(56,189,248,0.45);
+    background: linear-gradient(160deg, rgba(56,189,248,0.10) 0%, var(--bg-2) 100%);
+    box-shadow: 0 0 0 1px rgba(56,189,248,0.25), 0 18px 34px -20px rgba(56,189,248,0.5);
+    animation: runningPulse 2.4s ease-in-out infinite;
+}
+.job-live--on .status-dot { animation: pulseDot 1.4s ease-in-out infinite; }
 .job-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.6rem; }
 .job-title h4 { margin: 0 0 0.15rem; font-size: 0.92rem; font-weight: 700; color: #fff; line-height: 1.3; }
 .job-alt { font-size: 0.7rem; color: var(--muted-2); }
