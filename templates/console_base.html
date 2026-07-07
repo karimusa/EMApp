@@ -23,12 +23,14 @@
             <a class="nav-item {% if active_nav == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard.index') }}"><i class="bi bi-grid-1x2-fill"></i><span>Dashboard</span></a>
             <a class="nav-item disabled" href="#" tabindex="-1"><i class="bi bi-play-circle"></i><span>Runs</span></a>
             <a class="nav-item disabled" href="#" tabindex="-1"><i class="bi bi-list-check"></i><span>Steps</span></a>
+            <a class="nav-item {% if active_nav == 'jobs' %}active{% endif %}" href="{{ url_for('dashboard.agent_jobs') }}"><i class="bi bi-hdd-network"></i><span>SQL Agent Jobs</span></a>
             <a class="nav-item disabled" href="#" tabindex="-1"><i class="bi bi-activity"></i><span>Monitoring</span></a>
             <a class="nav-item disabled" href="#" tabindex="-1"><i class="bi bi-patch-check"></i><span>Validations</span></a>
             <a class="nav-item disabled" href="#" tabindex="-1"><i class="bi bi-bell"></i><span>Alerts</span><span class="nav-badge">2</span></a>
             <a class="nav-item disabled" href="#" tabindex="-1"><i class="bi bi-file-earmark-bar-graph"></i><span>Reports</span></a>
             <a class="nav-item disabled" href="#" tabindex="-1"><i class="bi bi-hdd-stack"></i><span>Servers</span></a>
             {% if nav_is_admin %}
+            <div class="nav-section">Administration</div>
             <a class="nav-item {% if active_nav == 'users' %}active{% endif %}" href="{{ url_for('admin.users') }}"><i class="bi bi-people-fill"></i><span>Users</span></a>
             {% endif %}
             <a class="nav-item disabled" href="#" tabindex="-1"><i class="bi bi-gear"></i><span>Settings</span></a>

@@ -418,6 +418,45 @@ def get_job_runs() -> list[dict[str, Any]]:
     ]
 
 
+def get_monitored_agent_jobs() -> list[dict[str, Any]]:
+    """Rows shaped like the ``orchestration.usp_GetMonitoredAgentJobs`` result set.
+
+    Server names are resolved from ``app_connections`` (never hardcoded).
+    """
+    # (name, enabled, last_status, last_run, next_run, running, connection_name)
+    jobs = [
+        ("BigFish Nightly Load", True, "Succeeded",
+         "05/31 01:40 AM", "06/01 01:30 AM", False, "PRIMARY"),
+        ("PeopleSoft Revenue Sync", True, "Succeeded",
+         "05/31 02:05 AM", "06/01 02:00 AM", False, "PRIMARY"),
+        ("OfficeFull Model Refresh", True, "Running",
+         "05/31 02:48 AM", "06/01 02:45 AM", True, "PRIMARY"),
+        ("Warehouse Index Rebuild", True, "Succeeded",
+         "05/30 11:00 PM", "06/01 11:00 PM", False, "PRIMARY"),
+        ("CompTaskForce Export", False, "Canceled",
+         "05/29 03:15 AM", None, False, "PRIMARY"),
+        ("Azure EDM Pipeline", True, "Succeeded",
+         "05/31 02:22 AM", "06/01 02:15 AM", False, "REMOTE_SQL"),
+        ("Azure Metrics Rollup", True, "Failed",
+         "05/31 02:30 AM", "06/01 02:30 AM", False, "REMOTE_SQL"),
+    ]
+    rows: list[dict[str, Any]] = []
+    for name, enabled, status, last_run, next_run, running, conn in jobs:
+        rows.append(
+            {
+                "job_name": name,
+                "is_enabled": enabled,
+                "last_run_status": status,
+                "last_run_time": last_run,
+                "next_run_time": next_run,
+                "is_running": running,
+                "server_name": _server_for(conn),
+                "connection_name": conn,
+            }
+        )
+    return rows
+
+
 def get_current_run() -> dict[str, Any]:
     """The active ``job_runs`` row, enriched with the job name."""
     current = get_job_runs()[0]

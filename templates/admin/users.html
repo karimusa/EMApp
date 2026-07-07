@@ -54,10 +54,14 @@
                         <td class="mono muted">{{ u.created_at }}</td>
                         <td class="mono muted">{{ u.updated_at or '—' }}</td>
                         <td class="ta-right">
-                            <button class="btn-icon-sm" type="button" title="Edit"
+                            <button class="btn-icon-sm" type="button" title="Edit user"
                                     data-user-action="Edit" data-user-name="{{ u.username }}"><i class="bi bi-pencil"></i></button>
+                            <button class="btn-icon-sm" type="button" title="Change role"
+                                    data-user-action="Change role" data-user-name="{{ u.username }}"><i class="bi bi-shield-shaded"></i></button>
+                            <button class="btn-icon-sm" type="button" title="Change password"
+                                    data-user-action="Change password" data-user-name="{{ u.username }}"><i class="bi bi-key"></i></button>
                             <button class="btn-icon-sm btn-icon-sm--danger" type="button"
-                                    title="{{ 'Disable' if u.is_active else 'Enable' }}"
+                                    title="{{ 'Disable user' if u.is_active else 'Enable user' }}"
                                     data-user-action="{{ 'Disable' if u.is_active else 'Enable' }}"
                                     data-user-name="{{ u.username }}">
                                 <i class="bi {{ 'bi-person-x' if u.is_active else 'bi-person-check' }}"></i>

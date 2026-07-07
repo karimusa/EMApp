@@ -81,6 +81,20 @@ class DashboardService:
             "duration": _format_duration(run.get("duration_seconds")),
         }
 
+    def get_agent_jobs(self) -> dict[str, Any]:
+        """View model for the SQL Agent jobs page (mock ``usp_GetMonitoredAgentJobs``)."""
+        jobs = mock_data.get_monitored_agent_jobs()
+        return {
+            "jobs": jobs,
+            "active_connection": self.connections.get_active(),
+            "totals": {
+                "total": len(jobs),
+                "running": sum(1 for j in jobs if j["is_running"]),
+                "failed": sum(1 for j in jobs if j["last_run_status"] == "Failed"),
+                "disabled": sum(1 for j in jobs if not j["is_enabled"]),
+            },
+        }
+
     def _build_run_header(self) -> dict[str, Any]:
         return dict(mock_data.get_current_run())
 

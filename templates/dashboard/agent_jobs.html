@@ -1,0 +1,87 @@
+{% extends "console_base.html" %}
+{% set active_nav = 'jobs' %}
+{% block title %}SQL Agent Jobs — RRA Month-End Orchestration{% endblock %}
+{% block topbar_title %}SQL Agent Jobs{% endblock %}
+
+{% block page %}
+
+    <div class="content-head">
+        <div class="content-title">
+            <h2>SQL Agent Jobs</h2>
+            <span class="run-pill run-pill--running"><i class="bi bi-hdd-network"></i> Monitored</span>
+        </div>
+        <button class="btn-ghost" type="button" id="refreshJobsBtn"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+    </div>
+
+    <p class="page-hint">Backed by <code>orchestration.usp_GetMonitoredAgentJobs</code> across the active
+        connections. Live wiring is a later step; this view reads mock rows shaped like the proc result.</p>
+
+    <div class="conn-bar">
+        <i class="bi bi-hdd-network-fill"></i>
+        <span>Active connection</span>
+        <strong>{{ active_connection.connection_name }}</strong>
+        <span class="conn-sep">·</span>
+        <span class="mono">{{ active_connection.server_name }}</span>
+        <span class="conn-status"><span class="status-dot"></span> Connected</span>
+    </div>
+
+    <section class="stat-grid stat-grid--4">
+        <div class="stat-card"><div class="stat-top"><span class="stat-label">Monitored Jobs</span><span class="stat-icon stat-icon--blue"><i class="bi bi-hdd-stack"></i></span></div><div class="stat-value">{{ totals.total }}</div><div class="stat-sub">Across active servers</div></div>
+        <div class="stat-card"><div class="stat-top"><span class="stat-label">Running</span><span class="stat-icon stat-icon--cyan"><i class="bi bi-arrow-repeat"></i></span></div><div class="stat-value">{{ totals.running }}</div><div class="stat-sub">Currently executing</div></div>
+        <div class="stat-card"><div class="stat-top"><span class="stat-label">Failed</span><span class="stat-icon stat-icon--red"><i class="bi bi-x-circle-fill"></i></span></div><div class="stat-value">{{ totals.failed }}</div><div class="stat-sub">Last run failed</div></div>
+        <div class="stat-card"><div class="stat-top"><span class="stat-label">Disabled</span><span class="stat-icon stat-icon--amber"><i class="bi bi-pause-circle"></i></span></div><div class="stat-value">{{ totals.disabled }}</div><div class="stat-sub">Not scheduled</div></div>
+    </section>
+
+    <section class="log-panel">
+        <div class="log-head">
+            <h3><i class="bi bi-hdd-network"></i> Monitored Agent Jobs</h3>
+        </div>
+        <div class="log-table-wrap">
+            <table class="log-table">
+                <thead>
+                    <tr>
+                        <th>Job</th><th>Enabled</th><th>Last Run</th><th>Last Run Time</th>
+                        <th>Next Run</th><th>State</th><th>Server</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for j in jobs %}
+                    <tr>
+                        <td><strong>{{ j.job_name }}</strong></td>
+                        <td>
+                            {% if j.is_enabled %}
+                            <span class="log-badge log-badge--ok">Enabled</span>
+                            {% else %}
+                            <span class="log-badge log-badge--info">Disabled</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% set map = {'Succeeded': 'ok', 'Failed': 'err', 'Running': 'run', 'Retry': 'info', 'Canceled': 'info'} %}
+                            <span class="log-badge log-badge--{{ map.get(j.last_run_status, 'info') }}">{{ j.last_run_status }}</span>
+                        </td>
+                        <td class="mono muted">{{ j.last_run_time or '—' }}</td>
+                        <td class="mono muted">{{ j.next_run_time or '—' }}</td>
+                        <td>
+                            {% if j.is_running %}
+                            <span class="badge-exec badge-exec--run"><i class="bi bi-arrow-repeat spin"></i> Running</span>
+                            {% else %}
+                            <span class="badge-exec badge-exec--wait"><i class="bi bi-pause"></i> Idle</span>
+                            {% endif %}
+                        </td>
+                        <td class="mono muted">{{ j.server_name }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById("refreshJobsBtn")?.addEventListener("click", function () {
+        if (window.rraToast) window.rraToast("Live SQL Agent job refresh is wired in a later step.");
+    });
+</script>
+{% endblock %}
