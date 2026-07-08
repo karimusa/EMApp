@@ -1,0 +1,67 @@
+{% extends "console_base.html" %}
+{% from "dashboard/_macros.html" import run_status_badge %}
+{% set active_nav = 'runs' %}
+{% block title %}Runs — RRA Month-End Orchestration{% endblock %}
+{% block topbar_title %}Run Management{% endblock %}
+
+{% block page %}
+    <div class="content-head">
+        <div class="content-title">
+            <h2>Month-End Runs</h2>
+            {{ run_status_badge(current_run.status) }}
+        </div>
+        {% if nav_is_admin %}
+        <button class="btn-primary" type="button" id="startRunBtn"><i class="bi bi-play-fill"></i> Start New Run</button>
+        {% endif %}
+    </div>
+
+    <section class="stat-grid stat-grid--4">
+        <div class="stat-card highlight-card">
+            <div class="stat-top"><span class="stat-label">Current Period</span><span class="stat-icon stat-icon--blue"><i class="bi bi-calendar3"></i></span></div>
+            <div class="stat-value stat-value--sm">{{ current_run.period_label }}</div>
+            <div class="stat-sub">Run #{{ current_run.run_id }} · {{ current_run.job_name }}</div>
+        </div>
+        <div class="stat-card"><div class="stat-top"><span class="stat-label">Started</span></div><div class="stat-value stat-value--sm">{{ current_run.started_at }}</div><div class="stat-sub">By admin</div></div>
+        <div class="stat-card"><div class="stat-top"><span class="stat-label">Total Runs</span></div><div class="stat-value">{{ run_history|length }}</div><div class="stat-sub">Archived in history</div></div>
+        <div class="stat-card"><div class="stat-top"><span class="stat-label">Status</span></div><div class="stat-value stat-value--sm">{{ current_run.status }}</div><div class="stat-sub">Live orchestration</div></div>
+    </section>
+
+    <section class="log-panel">
+        <div class="log-head">
+            <h3><i class="bi bi-clock-history"></i> All Runs</h3>
+            <button class="btn-ghost" type="button" id="refreshRunsBtn"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+        </div>
+        <div class="log-table-wrap">
+            <table class="log-table">
+                <thead><tr><th>Run ID</th><th>Period</th><th>Status</th><th>Started</th><th>Duration</th><th>Started By</th><th class="ta-right">Actions</th></tr></thead>
+                <tbody>
+                    {% for r in run_history %}
+                    <tr>
+                        <td class="mono">#{{ r.run_id }}</td>
+                        <td><strong>{{ r.period_label }}</strong></td>
+                        <td>{{ run_status_badge(r.status) }}</td>
+                        <td class="mono">{{ r.started_at }}</td>
+                        <td class="mono">{{ (r.duration_seconds // 60) ~ 'm ' ~ (r.duration_seconds % 60) ~ 's' if r.duration_seconds else '—' }}</td>
+                        <td>{{ r.started_by }}</td>
+                        <td class="ta-right">
+                            <button class="btn-ghost btn-ghost--sm" type="button" data-view-run>View Details</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    window.rraUI?.withAction(document.getElementById("startRunBtn"), function () {
+        return "New run initiated for {{ current_run.period_label }}.";
+    }, { successFlash: true, delay: 1000 });
+    window.rraUI?.withAction(document.getElementById("refreshRunsBtn"), function () {}, { message: "Run history refreshed.", successFlash: true, delay: 600 });
+    document.querySelectorAll("[data-view-run]").forEach(function (btn) {
+        window.rraUI?.withAction(btn, function () {}, { message: "Run detail panel opens in a later step.", delay: 500 });
+    });
+</script>
+{% endblock %}

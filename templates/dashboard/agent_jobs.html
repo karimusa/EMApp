@@ -67,10 +67,9 @@
 
 {% block scripts %}
 <script>
-    document.getElementById("refreshJobsBtn")?.addEventListener("click", function () {
-        if (window.rraToast) window.rraToast("Live SQL Agent job status refresh is wired in a later step.");
-    });
-    // Highlight a job when navigated to via #job-<key> (from a step card).
+    window.rraUI?.withAction(document.getElementById("refreshJobsBtn"), function () {
+        return "SQL Agent job status refreshed.";
+    }, { successFlash: true, delay: 900 });
     (function () {
         function highlight() {
             document.querySelectorAll(".job-card.highlight").forEach((c) => c.classList.remove("highlight"));

@@ -14,13 +14,15 @@ document.getElementById("loginForm")?.addEventListener("submit", function (event
     }
 
     const btn = document.getElementById("loginBtn");
-    if (!btn) return;
-    btn.disabled = true;
-    btn.querySelector(".btn-text")?.classList.add("d-none");
-    btn.querySelector(".btn-loading")?.classList.remove("d-none");
+    if (!btn || window.rraUI) {
+        window.rraUI?.setLoading(btn, true);
+    } else {
+        btn.disabled = true;
+        btn.querySelector(".btn-text")?.classList.add("d-none");
+        btn.querySelector(".btn-loading")?.classList.remove("d-none");
+    }
 });
 
-// Password visibility toggle
 document.getElementById("passwordToggle")?.addEventListener("click", function () {
     const input = document.getElementById("password");
     const icon = this.querySelector("i");
@@ -30,4 +32,11 @@ document.getElementById("passwordToggle")?.addEventListener("click", function ()
     icon?.classList.toggle("bi-eye", !show);
     icon?.classList.toggle("bi-eye-slash", show);
     this.setAttribute("aria-label", show ? "Hide password" : "Show password");
+    this.classList.toggle("is-active", show);
+});
+
+document.querySelectorAll(".login-card .form-control").forEach(function (input) {
+    input.addEventListener("input", function () {
+        input.classList.remove("is-invalid");
+    });
 });

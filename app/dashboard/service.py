@@ -146,3 +146,87 @@ class DashboardService:
             enriched["duration"] = _format_duration(row.get("duration_seconds"))
             rows.append(enriched)
         return rows
+
+    def get_logs_page(self) -> dict[str, Any]:
+        return {
+            "execution_log": self._build_log(),
+            "audit_log": mock_data.get_audit_log(),
+            "run_history": mock_data.get_job_runs(),
+            "active_connection": self.connections.get_active(),
+        }
+
+    def get_runs_page(self) -> dict[str, Any]:
+        return {
+            "run_history": mock_data.get_job_runs(),
+            "current_run": self._build_run_header(),
+            "active_connection": self.connections.get_active(),
+        }
+
+    def get_steps_page(self) -> dict[str, Any]:
+        data = self.get_dashboard()
+        all_steps = []
+        for phase in data["phases"]:
+            all_steps.extend(phase["steps"])
+        return {
+            "steps": sorted(all_steps, key=lambda s: s["step_order"]),
+            "phases": data["phases"],
+            "active_connection": self.connections.get_active(),
+        }
+
+    def get_monitoring_page(self) -> dict[str, Any]:
+        return {
+            "metrics": mock_data.get_monitoring_metrics(),
+            "connections": self.connections.list_connections(),
+            "agent_totals": self.get_agent_jobs()["totals"],
+            "active_connection": self.connections.get_active(),
+        }
+
+    def get_validations_page(self) -> dict[str, Any]:
+        validations = mock_data.get_validation_results()
+        steps = mock_data.get_job_steps()
+        rows = []
+        for step in steps:
+            val = validations.get(step["step_id"], {})
+            if val:
+                rows.append({**step, "validation": val})
+        return {
+            "validations": rows,
+            "active_connection": self.connections.get_active(),
+        }
+
+    def get_alerts_page(self) -> dict[str, Any]:
+        return {
+            "alerts": mock_data.get_alerts(),
+            "active_connection": self.connections.get_active(),
+        }
+
+    def get_reports_page(self) -> dict[str, Any]:
+        return {
+            "reports": mock_data.get_reports(),
+            "active_connection": self.connections.get_active(),
+        }
+
+    def get_servers_page(self) -> dict[str, Any]:
+        return {
+            "connections": self.connections.list_connections(),
+            "active_connection": self.connections.get_active(),
+        }
+
+    def get_audit_page(self) -> dict[str, Any]:
+        return {
+            "audit_log": mock_data.get_audit_log(),
+            "active_connection": self.connections.get_active(),
+        }
+
+    def get_settings_page(self) -> dict[str, Any]:
+        return {
+            "settings": {
+                "session_timeout_minutes": 60,
+                "log_retention_days": 90,
+                "auto_validate": True,
+                "notify_on_failure": True,
+                "default_period": "Current month",
+            },
+            "active_connection": self.connections.get_active(),
+        }
+

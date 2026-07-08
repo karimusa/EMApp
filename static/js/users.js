@@ -1,29 +1,17 @@
-// User management interactions — Step 2 (layout only).
-// Add/Edit/Disable are wired to real mutations in a later step.
+// User management — polished admin actions with loading/success states.
 
 (function () {
     "use strict";
 
-    function notify(message) {
-        if (window.rraToast) {
-            window.rraToast(message);
-        } else {
-            alert(message); // eslint-disable-line no-alert
-        }
-    }
+    const ui = window.rraUI;
 
-    const addBtn = document.getElementById("addUserBtn");
-    if (addBtn) {
-        addBtn.addEventListener("click", function () {
-            notify("Adding users is wired in a later step.");
-        });
-    }
+    ui?.withAction(document.getElementById("addUserBtn"), function () {
+        return "Add user wizard opens in a later step.";
+    });
 
     document.querySelectorAll("[data-user-action]").forEach(function (btn) {
-        btn.addEventListener("click", function () {
-            const action = btn.dataset.userAction;
-            const name = btn.dataset.userName;
-            notify(action + ' "' + name + '" is wired in a later step.');
-        });
+        ui?.withAction(btn, function () {
+            return btn.dataset.userAction + ' "' + btn.dataset.userName + '" is wired in a later step.';
+        }, { delay: 600 });
     });
 })();

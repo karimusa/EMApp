@@ -603,3 +603,45 @@ def get_current_run() -> dict[str, Any]:
 
 def _seconds_after(seconds: int) -> str:
     return (_RUN_DATE + timedelta(seconds=seconds)).strftime("%m/%d %I:%M:%S %p")
+
+
+# ---------------------------------------------------------------------------
+# Console pages — audit, alerts, monitoring (mock)
+# ---------------------------------------------------------------------------
+def get_audit_log() -> list[dict[str, Any]]:
+    return [
+        {"logged_at": "05/31 02:45 AM", "user": "admin", "action": "Login", "detail": "Successful sign-in", "ip": "10.0.4.22", "status": "Success"},
+        {"logged_at": "05/31 02:18 AM", "user": "admin", "action": "Start Run", "detail": "Initiated run #42 for May 2025", "ip": "10.0.4.22", "status": "Success"},
+        {"logged_at": "05/31 02:22 AM", "user": "system", "action": "Step Execute", "detail": "PRE-03 Load Staging completed", "ip": "—", "status": "Success"},
+        {"logged_at": "05/30 11:02 PM", "user": "jmorgan", "action": "Validate", "detail": "MAIN-07 row count validation failed", "ip": "10.0.8.15", "status": "Failed"},
+        {"logged_at": "05/30 09:14 PM", "user": "viewer", "action": "Login", "detail": "Successful sign-in (ReadOnly)", "ip": "10.0.12.88", "status": "Success"},
+        {"logged_at": "05/30 04:30 PM", "user": "admin", "action": "User Update", "detail": "Disabled user areyes", "ip": "10.0.4.22", "status": "Success"},
+    ]
+
+
+def get_alerts() -> list[dict[str, Any]]:
+    return [
+        {"severity": "Critical", "title": "Validation failed — MAIN-07", "message": "Row count mismatch on fact_gl_balances", "time": "05/31 02:38 AM", "status": "Open"},
+        {"severity": "Warning", "title": "Agent job delayed", "message": "AzurePSHRDataLoads running 18m over SLA", "time": "05/31 02:35 AM", "status": "Open"},
+        {"severity": "Info", "title": "Run checkpoint", "message": "Phase MAIN 4/12 steps complete", "time": "05/31 02:28 AM", "status": "Acknowledged"},
+        {"severity": "Warning", "title": "Connection latency", "message": "AZ-PROD-SQL latency elevated (240ms)", "time": "05/31 01:55 AM", "status": "Resolved"},
+    ]
+
+
+def get_monitoring_metrics() -> list[dict[str, Any]]:
+    return [
+        {"label": "Active connections", "value": "3", "status": "ok", "detail": "All pools healthy"},
+        {"label": "Avg query latency", "value": "84ms", "status": "ok", "detail": "Within SLA"},
+        {"label": "Agent jobs running", "value": "2", "status": "run", "detail": "2 of 14 monitored"},
+        {"label": "Failed steps (24h)", "value": "1", "status": "err", "detail": "MAIN-07 validation"},
+    ]
+
+
+def get_reports() -> list[dict[str, Any]]:
+    return [
+        {"name": "Month-End Close Summary", "type": "PDF", "updated": "05/31 02:40 AM", "status": "Ready"},
+        {"name": "Validation Exceptions", "type": "Excel", "updated": "05/31 02:38 AM", "status": "Ready"},
+        {"name": "Step Duration Analysis", "type": "Power BI", "updated": "05/30 11:00 PM", "status": "Stale"},
+        {"name": "Agent Job SLA Report", "type": "PDF", "updated": "05/30 06:00 AM", "status": "Ready"},
+    ]
+

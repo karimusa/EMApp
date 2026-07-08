@@ -1,0 +1,49 @@
+{% extends "console_base.html" %}
+{% set active_nav = 'settings' %}
+{% block title %}Settings — RRA Month-End Orchestration{% endblock %}
+{% block topbar_title %}Settings{% endblock %}
+
+{% block page %}
+    <div class="content-head">
+        <div class="content-title"><h2>Application Settings</h2></div>
+        {% if nav_is_admin %}
+        <button class="btn-primary" type="button" id="saveSettingsBtn"><i class="bi bi-check-lg"></i> Save Changes</button>
+        {% endif %}
+    </div>
+
+    <section class="settings-panel glass-panel">
+        <div class="settings-group">
+            <h3><i class="bi bi-shield-lock"></i> Security</h3>
+            <div class="settings-row">
+                <label for="sessionTimeout">Session timeout (minutes)</label>
+                <input id="sessionTimeout" type="number" class="settings-input" value="{{ settings.session_timeout_minutes }}" {% if not nav_is_admin %}disabled{% endif %}>
+            </div>
+            <div class="settings-row">
+                <label for="logRetention">Log retention (days)</label>
+                <input id="logRetention" type="number" class="settings-input" value="{{ settings.log_retention_days }}" {% if not nav_is_admin %}disabled{% endif %}>
+            </div>
+        </div>
+        <div class="settings-group">
+            <h3><i class="bi bi-sliders"></i> Orchestration</h3>
+            <div class="settings-row settings-row--toggle">
+                <label for="autoValidate">Auto-validate after each step</label>
+                <input id="autoValidate" type="checkbox" {% if settings.auto_validate %}checked{% endif %} {% if not nav_is_admin %}disabled{% endif %}>
+            </div>
+            <div class="settings-row settings-row--toggle">
+                <label for="notifyFailure">Notify on step failure</label>
+                <input id="notifyFailure" type="checkbox" {% if settings.notify_on_failure %}checked{% endif %} {% if not nav_is_admin %}disabled{% endif %}>
+            </div>
+            <div class="settings-row">
+                <label for="defaultPeriod">Default period</label>
+                <select id="defaultPeriod" class="filter-select" {% if not nav_is_admin %}disabled{% endif %}>
+                    <option selected>{{ settings.default_period }}</option>
+                    <option>Previous month</option>
+                </select>
+            </div>
+        </div>
+    </section>
+{% endblock %}
+
+{% block scripts %}
+<script>window.rraUI?.withAction(document.getElementById("saveSettingsBtn"), function () {}, { message: "Settings saved successfully.", successFlash: true, delay: 900 });</script>
+{% endblock %}

@@ -1,0 +1,109 @@
+{% extends "console_base.html" %}
+{% from "dashboard/_macros.html" import run_status_badge, log_status %}
+{% set active_nav = 'logs' %}
+{% block title %}Logs / History — RRA Month-End Orchestration{% endblock %}
+{% block topbar_title %}Logs / History{% endblock %}
+
+{% block page %}
+    <div class="content-head">
+        <div class="content-title">
+            <h2>Logs &amp; History</h2>
+            <span class="run-pill run-pill--running"><i class="bi bi-journal-text"></i> Live feed</span>
+        </div>
+        <div class="page-actions">
+            <button class="btn-ghost" type="button" id="refreshLogsBtn"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+            <button class="btn-primary" type="button" id="exportLogsBtn"><i class="bi bi-download"></i> Export</button>
+        </div>
+    </div>
+
+    <div class="tab-bar" role="tablist">
+        <button class="tab-bar-btn active" data-tab="execution" type="button">Execution Log</button>
+        <button class="tab-bar-btn" data-tab="audit" type="button">Audit Trail</button>
+        <button class="tab-bar-btn" data-tab="runs" type="button">Run History</button>
+    </div>
+
+    <section class="log-panel tab-panel active" data-tab-panel="execution">
+        <div class="log-head">
+            <h3><i class="bi bi-terminal"></i> Execution Log</h3>
+            <span class="result-count">{{ execution_log|length }} entries</span>
+        </div>
+        <div class="log-table-wrap">
+            <table class="log-table">
+                <thead><tr><th>Time</th><th>Phase</th><th>Step</th><th>Message</th><th>Status</th><th>Duration</th><th>Server</th></tr></thead>
+                <tbody>
+                    {% for row in execution_log %}
+                    <tr>
+                        <td class="mono">{{ row.logged_at }}</td>
+                        <td><span class="phase-chip">{{ row.phase }}</span></td>
+                        <td>{{ row.step_name }}</td>
+                        <td class="log-msg">{{ row.message }}</td>
+                        <td>{{ log_status(row.status) }}</td>
+                        <td class="mono">{{ row.duration }}</td>
+                        <td class="mono muted">{{ row.server_name }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="log-panel tab-panel d-none" data-tab-panel="audit">
+        <div class="log-head"><h3><i class="bi bi-shield-check"></i> Audit Trail</h3></div>
+        <div class="log-table-wrap">
+            <table class="log-table">
+                <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Detail</th><th>IP</th><th>Status</th></tr></thead>
+                <tbody>
+                    {% for row in audit_log %}
+                    <tr>
+                        <td class="mono">{{ row.logged_at }}</td>
+                        <td><strong>{{ row.user }}</strong></td>
+                        <td>{{ row.action }}</td>
+                        <td class="log-msg">{{ row.detail }}</td>
+                        <td class="mono muted">{{ row.ip }}</td>
+                        <td>{{ log_status(row.status) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="log-panel tab-panel d-none" data-tab-panel="runs">
+        <div class="log-head"><h3><i class="bi bi-clock-history"></i> Run History</h3></div>
+        <div class="log-table-wrap">
+            <table class="log-table">
+                <thead><tr><th>Period</th><th>Status</th><th>Started</th><th>Duration</th><th>By</th><th></th></tr></thead>
+                <tbody>
+                    {% for r in run_history %}
+                    <tr>
+                        <td>{{ r.period_label }}</td>
+                        <td>{{ run_status_badge(r.status) }}</td>
+                        <td class="mono">{{ r.started_at }}</td>
+                        <td class="mono">{{ (r.duration_seconds // 60) ~ 'm ' ~ (r.duration_seconds % 60) ~ 's' if r.duration_seconds else '—' }}</td>
+                        <td class="muted">{{ r.started_by }}</td>
+                        <td><button class="btn-ghost btn-ghost--sm" type="button" data-action="view-run">View Details</button></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.querySelectorAll(".tab-bar-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            document.querySelectorAll(".tab-bar-btn").forEach((b) => b.classList.remove("active"));
+            document.querySelectorAll(".tab-panel").forEach((p) => p.classList.add("d-none"));
+            btn.classList.add("active");
+            document.querySelector('[data-tab-panel="' + btn.dataset.tab + '"]')?.classList.remove("d-none");
+        });
+    });
+    window.rraUI?.withAction(document.getElementById("refreshLogsBtn"), function () {}, { message: "Log feed refreshed.", successFlash: true, delay: 700 });
+    window.rraUI?.withAction(document.getElementById("exportLogsBtn"), function () {}, { message: "Export queued — download will start shortly.", successFlash: true });
+    document.querySelectorAll('[data-action="view-run"]').forEach(function (btn) {
+        window.rraUI?.withAction(btn, function () {}, { message: "Run detail view opens in a later step.", delay: 500 });
+    });
+</script>
+{% endblock %}

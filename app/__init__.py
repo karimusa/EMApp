@@ -29,7 +29,7 @@ def create_app(config_class=Config):
     @app.route("/")
     def root():
         if session.get("user_id"):
-            return redirect(url_for("auth.post_login"))
+            return redirect(url_for("dashboard.index"))
         return redirect(url_for("auth.login"))
 
     @app.context_processor

@@ -9,6 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
 </head>
 <body class="login-body">
@@ -71,9 +72,9 @@
                     </div>
 
                     <button type="submit" class="login-btn" id="loginBtn">
-                        <span class="btn-text"><i class="bi bi-lock-fill"></i> Sign In</span>
-                        <span class="btn-loading d-none">
-                            <span class="spinner-border spinner-border-sm" role="status"></span>
+                        <span class="btn-text btn-label"><i class="bi bi-lock-fill"></i> Sign In</span>
+                        <span class="btn-loading btn-spinner-wrap d-none" aria-hidden="true">
+                            <span class="btn-spinner"></span>
                             Signing in…
                         </span>
                     </button>
@@ -93,6 +94,9 @@
 
         <!-- Right: showcase -->
         <aside class="showcase-panel">
+            <div class="showcase-orb showcase-orb--1" aria-hidden="true"></div>
+            <div class="showcase-orb showcase-orb--2" aria-hidden="true"></div>
+            <div class="showcase-orb showcase-orb--3" aria-hidden="true"></div>
             <div class="showcase-particles" aria-hidden="true">
                 <span></span><span></span><span></span><span></span>
                 <span></span><span></span><span></span><span></span>
@@ -111,9 +115,13 @@
                        cloud connections, and ETL pipelines — all from one secure console.</p>
                 </div>
 
-                <div class="showcase-art">
-                    <img src="{{ url_for('static', filename='images/enterprise_data_platform.png') }}"
-                         alt="Enterprise data operations platform: SQL Server, cloud connectors, ETL pipelines, orchestration engine, dashboards, data warehouse, security and automation">
+                <div class="showcase-art" aria-hidden="true">
+                    <div class="platform-glow"></div>
+                    <div class="platform-stack">
+                        <div class="platform-layer platform-layer--1">SQL Server · ETL</div>
+                        <div class="platform-layer platform-layer--2">Orchestration</div>
+                        <div class="platform-layer platform-layer--3">Dashboard</div>
+                    </div>
                 </div>
 
                 <ul class="feature-cards" aria-hidden="true">
@@ -153,7 +161,7 @@
 
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
     <script src="{{ url_for('static', filename='js/login.js') }}"></script>
 </body>
 </html>

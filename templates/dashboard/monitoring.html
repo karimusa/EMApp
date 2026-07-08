@@ -1,0 +1,58 @@
+{% extends "console_base.html" %}
+{% set active_nav = 'monitoring' %}
+{% block title %}Monitoring — RRA Month-End Orchestration{% endblock %}
+{% block topbar_title %}System Monitoring{% endblock %}
+
+{% block page %}
+    <div class="content-head">
+        <div class="content-title">
+            <h2>Live Monitoring</h2>
+            <span class="run-pill run-pill--success"><span class="status-dot"></span> Systems nominal</span>
+        </div>
+        <button class="btn-ghost" type="button" id="refreshMonitoringBtn"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+    </div>
+
+    <section class="stat-grid stat-grid--4">
+        {% for m in metrics %}
+        <div class="stat-card">
+            <div class="stat-top"><span class="stat-label">{{ m.label }}</span><span class="stat-icon stat-icon--{{ m.status }}"><i class="bi bi-activity"></i></span></div>
+            <div class="stat-value">{{ m.value }}</div>
+            <div class="stat-sub">{{ m.detail }}</div>
+        </div>
+        {% endfor %}
+    </section>
+
+    <div class="panel-row">
+        <section class="log-panel">
+            <div class="log-head"><h3><i class="bi bi-hdd-stack"></i> Connection Health</h3></div>
+            <div class="log-table-wrap">
+                <table class="log-table">
+                    <thead><tr><th>Connection</th><th>Server</th><th>Database</th><th>Status</th></tr></thead>
+                    <tbody>
+                        {% for c in connections %}
+                        <tr>
+                            <td><strong>{{ c.connection_name }}</strong></td>
+                            <td class="mono">{{ c.server_name }}</td>
+                            <td class="mono muted">{{ c.database_name }}</td>
+                            <td><span class="log-badge log-badge--ok">Healthy</span></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        <section class="log-panel">
+            <div class="log-head"><h3><i class="bi bi-hdd-network"></i> Agent Jobs Snapshot</h3></div>
+            <div class="monitor-snapshot">
+                <div class="snapshot-row"><span>Monitored</span><strong>{{ agent_totals.total }}</strong></div>
+                <div class="snapshot-row"><span>Running</span><strong class="text-run">{{ agent_totals.running }}</strong></div>
+                <div class="snapshot-row"><span>Failed</span><strong class="text-err">{{ agent_totals.failed }}</strong></div>
+                <div class="snapshot-row"><span>Disabled</span><strong>{{ agent_totals.disabled }}</strong></div>
+            </div>
+        </section>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+<script>window.rraUI?.withAction(document.getElementById("refreshMonitoringBtn"), function () {}, { message: "Monitoring metrics refreshed.", successFlash: true, delay: 800 });</script>
+{% endblock %}

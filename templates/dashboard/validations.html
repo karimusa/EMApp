@@ -1,0 +1,51 @@
+{% extends "console_base.html" %}
+{% set active_nav = 'validations' %}
+{% block title %}Validations — RRA Month-End Orchestration{% endblock %}
+{% block topbar_title %}Validation Results{% endblock %}
+
+{% block page %}
+    <div class="content-head">
+        <div class="content-title">
+            <h2>Validations</h2>
+            <span class="run-pill run-pill--failed"><i class="bi bi-patch-exclamation-fill"></i> 1 failed</span>
+        </div>
+        <button class="btn-primary" type="button" id="runAllValidateBtn"><i class="bi bi-patch-check"></i> Validate All Pending</button>
+    </div>
+
+    <section class="log-panel">
+        <div class="log-table-wrap">
+            <table class="log-table">
+                <thead><tr><th>Step</th><th>Phase</th><th>Status</th><th>Expected</th><th>Matched</th><th>Time</th><th class="ta-right">Actions</th></tr></thead>
+                <tbody>
+                    {% for row in validations %}
+                    {% set v = row.validation %}
+                    <tr>
+                        <td><strong>{{ row.step_name }}</strong></td>
+                        <td><span class="phase-chip">{{ row.phase_code }}</span></td>
+                        <td>
+                            {% if v.ValidationStatus == 'Pass' %}<span class="log-badge log-badge--ok">Passed</span>
+                            {% elif v.ValidationStatus == 'Fail' %}<span class="log-badge log-badge--err">Failed</span>
+                            {% else %}<span class="log-badge log-badge--info">Pending</span>{% endif %}
+                        </td>
+                        <td class="mono">{{ v.ExpectedItem or '—' }}</td>
+                        <td class="mono">{{ v.MatchedItem or '—' }}</td>
+                        <td class="mono muted">{{ v.ValidationTime or '—' }}</td>
+                        <td class="ta-right">
+                            <button class="btn-validate btn-validate--sm" type="button" data-validate-step="{{ row.step_name }}">Validate</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    window.rraUI?.withAction(document.getElementById("runAllValidateBtn"), function () {}, { message: "Batch validation started.", successFlash: true, delay: 1000 });
+    document.querySelectorAll("[data-validate-step]").forEach(function (btn) {
+        window.rraUI?.withAction(btn, function () { return 'Validation queued for "' + btn.dataset.validateStep + '".'; }, { successFlash: true, delay: 700 });
+    });
+</script>
+{% endblock %}

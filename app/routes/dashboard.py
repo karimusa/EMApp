@@ -1,13 +1,8 @@
-"""Dashboard routes — Step 2: operations console layout.
-
-Read-only layout wired to mock data. Execution/validation actions are not
-implemented yet (Steps 6–7); the Run/Validate controls are rendered for Admin
-users only but do not trigger any logic.
-"""
+"""Dashboard routes — operations console."""
 
 from flask import Blueprint, render_template
 
-from app.auth.decorators import login_required
+from app.auth.decorators import admin_required, login_required
 from app.dashboard.service import DashboardService
 
 dashboard_bp = Blueprint("dashboard", __name__)
@@ -39,3 +34,73 @@ def agent_jobs():
         totals=data["totals"],
         active_connection=data["active_connection"],
     )
+
+
+@dashboard_bp.route("/runs")
+@login_required
+def runs():
+    data = dashboard_service.get_runs_page()
+    return render_template("dashboard/runs.html", **data)
+
+
+@dashboard_bp.route("/steps")
+@login_required
+def steps():
+    data = dashboard_service.get_steps_page()
+    return render_template("dashboard/steps.html", **data)
+
+
+@dashboard_bp.route("/logs")
+@login_required
+def logs():
+    data = dashboard_service.get_logs_page()
+    return render_template("dashboard/logs.html", **data)
+
+
+@dashboard_bp.route("/monitoring")
+@login_required
+def monitoring():
+    data = dashboard_service.get_monitoring_page()
+    return render_template("dashboard/monitoring.html", **data)
+
+
+@dashboard_bp.route("/validations")
+@login_required
+def validations():
+    data = dashboard_service.get_validations_page()
+    return render_template("dashboard/validations.html", **data)
+
+
+@dashboard_bp.route("/alerts")
+@login_required
+def alerts():
+    data = dashboard_service.get_alerts_page()
+    return render_template("dashboard/alerts.html", **data)
+
+
+@dashboard_bp.route("/reports")
+@login_required
+def reports():
+    data = dashboard_service.get_reports_page()
+    return render_template("dashboard/reports.html", **data)
+
+
+@dashboard_bp.route("/servers")
+@login_required
+def servers():
+    data = dashboard_service.get_servers_page()
+    return render_template("dashboard/servers.html", **data)
+
+
+@dashboard_bp.route("/settings")
+@login_required
+def settings():
+    data = dashboard_service.get_settings_page()
+    return render_template("dashboard/settings.html", **data)
+
+
+@dashboard_bp.route("/audit-logs")
+@login_required
+def audit_logs():
+    data = dashboard_service.get_audit_page()
+    return render_template("dashboard/audit_logs.html", **data)

@@ -12,7 +12,7 @@ auth_service = AuthService()
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
     if session.get("user_id"):
-        return redirect(url_for("auth.post_login"))
+        return redirect(url_for("dashboard.index"))
 
     error = None
     if request.method == "POST":
@@ -33,7 +33,7 @@ def login():
                 session["username"] = user["username"]
                 session["role"] = user["role"]
                 session.permanent = True
-                return redirect(url_for("auth.post_login"))
+                return redirect(url_for("dashboard.index"))
 
     return render_template("auth/login.html", error=error)
 
