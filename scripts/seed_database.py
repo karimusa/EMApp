@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Seed MonthEndOrchestrationDB from the frozen STEP_REGISTRY and sample run data.
 
-Bootstrap credentials (``.env`` — same file the running app uses):
+Bootstrap credentials (``.env`` — bootstrap connection only):
   BOOTSTRAP_SERVER, BOOTSTRAP_DATABASE, BOOTSTRAP_USER, BOOTSTRAP_PASSWORD
 
-Seed connection targets (``scripts/seed.env`` — NOT read by the running app):
+Seed connection targets (``.env`` or ``scripts/seed.env`` — seed script only):
   SEED_PRIMARY_SERVER, SEED_PRIMARY_DATABASE, SEED_PRIMARY_USER, SEED_PRIMARY_PASSWORD
   SEED_REMOTE_SERVER,  SEED_REMOTE_DATABASE,  SEED_REMOTE_USER,  SEED_REMOTE_PASSWORD
 

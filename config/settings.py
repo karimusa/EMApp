@@ -8,8 +8,8 @@ is loaded from ``orchestration.app_connections`` by ``ConnectionManager`` and
 used exclusively through the repository layer.
 
 The running application never reads runtime server/database names from ``.env``.
-Seed-time connection targets (``SEED_*``) belong in ``scripts/seed.env``, not
-the application ``.env``.
+``SEED_*`` in ``.env`` are used only by ``scripts/seed_database.py`` (not the running app).
+Optional seed overrides may also live in ``scripts/seed.env``.
 """
 
 from __future__ import annotations

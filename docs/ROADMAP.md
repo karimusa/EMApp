@@ -12,15 +12,15 @@
 ## Live SQL deployment
 
 1. Copy project to target path (e.g. `G:\EM` on SDAZ001MLD21)
-2. Run `start.bat` (or `setup.ps1 -PrepareOnly` then `python run.py`)
-3. Configure `.env` with **bootstrap** credentials only (`BOOTSTRAP_*`)
-4. Deploy `docs/planning/sql/schema.sql`
-5. Configure `scripts/seed.env` from `scripts/seed.env.example` and run `python scripts/seed_database.py`
-6. Set `DATA_SOURCE=sql` (or `auto`) and run `python scripts/verify_live_reads.py`
-7. Confirm screens: login, dashboard, run-history, agent-jobs, logs, users, monitoring, validation, settings
+2. Copy `.env.example` to `.env` and fill in `BOOTSTRAP_*` + `CONNECTION_SECRET_KEY`
+3. Run `powershell -ExecutionPolicy Bypass -File .\setup.ps1 -TestConnection`
+4. Confirm `Bootstrap connection: SUCCESS` and `Runtime registry loaded successfully.`
+5. Deploy `docs/planning/sql/schema.sql`
+6. Fill `SEED_*` in `.env` and run `python scripts/seed_database.py`
+7. Run `start.bat` and verify all screens
 
-`.env` bootstraps MonthEndOrchestrationDB. All runtime server/database names come
-from **orchestration.app_connections** only.
+`.env` = bootstrap only (`BOOTSTRAP_SERVER` hosts MonthEndOrchestrationDB).
+Runtime server/database names come from **orchestration.app_connections** only.
 
 ## Not yet wired (next phase)
 

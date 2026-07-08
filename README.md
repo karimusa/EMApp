@@ -3,18 +3,65 @@
 Enterprise month-end orchestration console. UI is frozen; data loads through
 `app/dashboard/data.py` (SQL repositories with mock fallback for offline/testing).
 
-## Quick start (Windows — e.g. G:\EM on SDAZ001MLD21)
+## First run (Windows — e.g. `G:\EM` on `SDAZ001MLD21`)
 
-```bat
-start.bat
-```
+1. **Copy the configuration template**
 
-Open **http://127.0.0.1:50006/login**
+   ```powershell
+   cd G:\EM
+   copy .env.example .env
+   ```
+
+2. **Edit `.env`** and fill in:
+
+   | Variable | Example |
+   |----------|---------|
+   | `BOOTSTRAP_SERVER` | `SDAZ001MLD21` |
+   | `BOOTSTRAP_DATABASE` | `MonthEndOrchestrationDB` |
+   | `BOOTSTRAP_USER` | `MonthEndApp` |
+   | `BOOTSTRAP_PASSWORD` | your real SQL password |
+   | `CONNECTION_SECRET_KEY` | your real Fernet key |
+
+   `.env` contains **only the bootstrap connection** — the server that hosts
+   `MonthEndOrchestrationDB`. All runtime SQL connections are loaded from
+   `orchestration.app_connections` after bootstrap succeeds.
+
+3. **Test bootstrap and registry load**
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\setup.ps1 -TestConnection
+   ```
+
+   Confirm you see:
+
+   ```text
+   Bootstrap connection: SUCCESS
+   Runtime registry loaded successfully.
+   ```
+
+4. **Deploy schema and seed** (first-time database setup)
+
+   - Deploy `docs/planning/sql/schema.sql`
+   - Fill `SEED_*` in `.env` (or `scripts\seed.env`) and run `python scripts\seed_database.py`
+
+5. **Start the app**
+
+   ```bat
+   start.bat
+   ```
+
+   Open **http://127.0.0.1:50006/login**
 
 | User   | Password  | Role     |
 |--------|-----------|----------|
 | admin  | admin123  | Admin    |
 | viewer | viewer123 | ReadOnly |
+
+## Quick start (after first run)
+
+```bat
+start.bat
+```
 
 ## Setup scripts
 
@@ -32,11 +79,16 @@ Open **http://127.0.0.1:50006/login**
 
 The running application reads **one** SQL target from `.env`:
 
-- `BOOTSTRAP_SERVER` — where MonthEndOrchestrationDB lives (e.g. `SDAZ001MLD21`)
+- `BOOTSTRAP_SERVER` — server hosting `MonthEndOrchestrationDB` (e.g. `SDAZ001MLD21`)
 - `BOOTSTRAP_DATABASE`, `BOOTSTRAP_USER`, `BOOTSTRAP_PASSWORD`
 
-That bootstrap connection is used solely to reach MonthEndOrchestrationDB and load
-`orchestration.app_connections`. No other runtime server names belong in `.env`.
+That bootstrap connection reaches `MonthEndOrchestrationDB` so the app can execute:
+
+```sql
+SELECT * FROM orchestration.app_connections WHERE is_active = 1;
+```
+
+No other runtime server names belong in `.env`.
 
 ### Runtime connections (database only)
 
@@ -44,22 +96,15 @@ After bootstrap succeeds, every operational SQL connection (`PRIMARY`, `REMOTE_S
 is loaded from `orchestration.app_connections`. Connection strings are built
 dynamically by `ConnectionManager`; repositories are the only layer that uses them.
 
-### Initial setup
+### Seed variables (`SEED_*`)
 
-1. Copy `.env.example` to `.env` and set bootstrap credentials
-2. Deploy `docs/planning/sql/schema.sql`
-3. Copy `scripts/seed.env.example` to `scripts/seed.env` and set seed targets
-4. Run `python scripts/seed_database.py` (writes `orchestration.app_connections`)
-5. Set `DATA_SOURCE=sql` (or `auto` with bootstrap set) and restart
-6. Run `python scripts/verify_live_reads.py`
-
-Server and database names for operational work live in the database table —
-never duplicated in `.env`.
+`SEED_*` in `.env` are used **only** by `scripts/seed_database.py` to insert initial
+rows into `orchestration.app_connections`. The running application does not read them.
 
 ## Offline / testing
 
 ```bash
-pytest                          # 59 tests, mock fallback
+pytest                          # mock fallback tests
 python scripts/verify_live_reads.py   # mock read checks without SQL Server
 ```
 
