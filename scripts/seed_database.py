@@ -132,6 +132,23 @@ def seed(db) -> None:
             """,
             (name, name, server, database, user, password or None),
         )
+        if password:
+            cursor.execute(
+                """
+                UPDATE orchestration.app_connections
+                SET server_name = ?,
+                    database_name = ?,
+                    sql_username = ?,
+                    sql_password_hash = ?,
+                    updated_at = SYSUTCDATETIME()
+                WHERE environment_name = ?
+                  AND (
+                      ISNULL(sql_password_hash, N'') = N''
+                      OR sql_password_hash <> ?
+                  )
+                """,
+                (server, database, user, password, name, password),
+            )
 
     # orchestration.jobs
     cursor.execute("SET IDENTITY_INSERT orchestration.jobs ON")

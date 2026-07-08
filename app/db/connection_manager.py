@@ -51,15 +51,68 @@ def _import_pyodbc():
     return pyodbc
 
 
-def _resolve_sql_password(sql_password_hash: str | None, secret_key: str) -> str:
+def _normalize_sql_identifier(value: str | None) -> str:
+    return (value or "").strip().lower()
+
+
+def _matches_bootstrap_target(
+    server_name: str,
+    database_name: str,
+    sql_username: str,
+    config: dict,
+) -> bool:
+    return (
+        _normalize_sql_identifier(server_name)
+        == _normalize_sql_identifier(config.get("BOOTSTRAP_SERVER"))
+        and _normalize_sql_identifier(database_name)
+        == _normalize_sql_identifier(config.get("BOOTSTRAP_DATABASE"))
+        and _normalize_sql_identifier(sql_username)
+        == _normalize_sql_identifier(config.get("BOOTSTRAP_USER"))
+    )
+
+
+def _resolve_sql_password(
+    sql_password_hash: str | None,
+    secret_key: str,
+    *,
+    server_name: str = "",
+    database_name: str = "",
+    sql_username: str = "",
+    config: dict | None = None,
+) -> str:
     raw = (sql_password_hash or "").strip()
     if not raw:
-        return ""
-    if secret_key:
-        decrypted = decrypt_password(raw, secret_key)
-        if decrypted:
-            return decrypted
-    return raw
+        password = ""
+    elif secret_key:
+        password = decrypt_password(raw, secret_key)
+        if not password:
+            logger.warning(
+                "Could not decrypt sql_password_hash for %s/%s; "
+                "check CONNECTION_SECRET_KEY or store plain text",
+                server_name,
+                database_name,
+            )
+            password = ""
+    else:
+        password = raw
+
+    if password:
+        return password
+
+    if config and _matches_bootstrap_target(
+        server_name, database_name, sql_username, config
+    ):
+        bootstrap_password = config.get("BOOTSTRAP_PASSWORD") or ""
+        if bootstrap_password:
+            logger.info(
+                "Using bootstrap password for %s/%s (%s)",
+                server_name,
+                database_name,
+                sql_username,
+            )
+            return bootstrap_password
+
+    return ""
 
 
 def _uses_integrated_auth(auth_type: str | None) -> bool:
@@ -99,7 +152,14 @@ class ConnectionManager:
                 database_name=row["database_name"],
                 auth_type=(row.get("auth_type") or "sql").strip(),
                 sql_username=row.get("sql_username") or "",
-                password=_resolve_sql_password(row.get("sql_password_hash"), secret_key),
+                password=_resolve_sql_password(
+                    row.get("sql_password_hash"),
+                    secret_key,
+                    server_name=row["server_name"],
+                    database_name=row["database_name"],
+                    sql_username=row.get("sql_username") or "",
+                    config=self._config,
+                ),
                 description=row.get("description") or "",
                 is_active=True,
                 driver=self._config.get("BOOTSTRAP_DRIVER", "ODBC Driver 18 for SQL Server"),
@@ -134,6 +194,13 @@ class ConnectionManager:
         parts.append(f"TrustServerCertificate={conn.trust_server_certificate}")
         return ";".join(parts)
 
+    def test_connection(self, environment_name: str = "PRIMARY") -> None:
+        """Open environment connection and run ``SELECT 1``."""
+        with self.connect(environment_name) as db:
+            cursor = db.cursor()
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+
     @contextmanager
     def connect(self, environment_name: str = "PRIMARY") -> Generator[Any, None, None]:
         pyodbc = _import_pyodbc()
@@ -141,6 +208,12 @@ class ConnectionManager:
         if not conn_info:
             raise ConnectionError(
                 f"Environment '{environment_name}' not found or not active"
+            )
+        if not _uses_integrated_auth(conn_info.auth_type) and not conn_info.password:
+            raise ConnectionError(
+                f"Environment '{environment_name}' has no SQL password configured. "
+                "Update orchestration.app_connections.sql_password_hash or ensure "
+                "it matches the bootstrap target so BOOTSTRAP_PASSWORD can be used."
             )
         db = pyodbc.connect(self.build_connection_string(conn_info), timeout=30)
         try:

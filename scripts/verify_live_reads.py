@@ -50,7 +50,37 @@ def main() -> int:
     if args.connections_only:
         require_bootstrap_config()
         runtime = build_runtime_config()
-        run_bootstrap_self_test_and_print(runtime)
+        rows = run_bootstrap_self_test_and_print(runtime)
+
+        from app import create_app
+        from app.db.connection_manager import init_connection_manager
+        from config.settings import DevelopmentConfig
+
+        app = create_app(DevelopmentConfig)
+        with app.app_context():
+            cm = init_connection_manager(app)
+            cm.reload()
+            if "PRIMARY" not in cm.all_connections():
+                print("FAILED: PRIMARY connection not loaded from registry", file=sys.stderr)
+                return 1
+            try:
+                cm.test_connection("PRIMARY")
+            except Exception as exc:
+                print(f"FAILED: PRIMARY connection: {exc}", file=sys.stderr)
+                if rows:
+                    primary = next(
+                        (r for r in rows if str(r.get("environment_name", "")).upper() == "PRIMARY"),
+                        None,
+                    )
+                    if primary and not (primary.get("sql_password_hash") or "").strip():
+                        print(
+                            "Hint: PRIMARY sql_password_hash is empty. "
+                            "Set it in orchestration.app_connections or match bootstrap "
+                            "server/database/user so BOOTSTRAP_PASSWORD applies.",
+                            file=sys.stderr,
+                        )
+                return 1
+            print("PRIMARY connection: SUCCESS")
         return 0
 
     bootstrap = print_bootstrap_validation()
@@ -96,6 +126,14 @@ def main() -> int:
         print(f"Loaded {len(conns)} runtime connection(s): {', '.join(conns.keys())}")
         for name, conn in conns.items():
             print(f"  {name}: {conn.environment_name} -> {conn.server_name} / {conn.database_name}")
+
+        if "PRIMARY" in conns:
+            try:
+                cm.test_connection("PRIMARY")
+                print("  OK  PRIMARY connection")
+            except Exception as exc:
+                print(f"FAILED: PRIMARY connection: {exc}", file=sys.stderr)
+                return 1
 
         print("\nRead-layer checks:")
         _check("dbo.users", lambda: data.get_users())
