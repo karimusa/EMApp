@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.db.connection_manager import APP_CONNECTIONS_SQL, get_connection_manager
+from app.db.connection_manager import APP_CONNECTIONS_REGISTRY_SQL, get_connection_manager
 from app.db.formatters import coerce_bool, format_timestamp
 from app.db.repositories.base import query_primary, use_mock_data
 
@@ -16,7 +16,7 @@ class ConnectionsRepository:
 
             return mock_data.get_app_connections()
 
-        rows = query_primary(APP_CONNECTIONS_SQL)
+        rows = query_primary(APP_CONNECTIONS_REGISTRY_SQL)
         return [self._normalize(row) for row in rows]
 
     def get_active(self) -> dict[str, Any]:

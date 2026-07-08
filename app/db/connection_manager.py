@@ -4,7 +4,7 @@ Bootstrap flow
 --------------
 1. Read ``BOOTSTRAP_*`` from ``.env`` (only place server names belong in env).
 2. Connect to MonthEndOrchestrationDB.
-3. SELECT active rows from ``orchestration.app_connections``.
+3. SELECT active rows: ``SELECT * FROM orchestration.app_connections WHERE is_active = 1``
 4. Build ODBC connection strings dynamically from those rows.
 5. Repositories call ``connect()`` / ``query_primary()`` / ``query_connection()``.
 """
@@ -24,20 +24,14 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-APP_CONNECTIONS_SQL = """
-    SELECT
-        connection_id,
-        connection_name,
-        server_name,
-        database_name,
-        username,
-        password_encrypted,
-        password_plain,
-        driver,
-        trust_server_certificate,
-        is_active,
-        created_at,
-        updated_at
+ACTIVE_APP_CONNECTIONS_SQL = """
+    SELECT *
+    FROM orchestration.app_connections
+    WHERE is_active = 1
+"""
+
+APP_CONNECTIONS_REGISTRY_SQL = """
+    SELECT *
     FROM orchestration.app_connections
     ORDER BY connection_name
 """
@@ -88,11 +82,10 @@ class ConnectionManager:
                 username=row.get("username") or "",
                 password=password,
                 driver=row.get("driver") or self._config.get("BOOTSTRAP_DRIVER", ""),
-                is_active=bool(row.get("is_active", True)),
+                is_active=True,
                 trust_server_certificate=row.get("trust_server_certificate") or "yes",
             )
-            if conn.is_active:
-                self._connections[conn.connection_name.upper()] = conn
+            self._connections[conn.connection_name.upper()] = conn
 
         logger.info("Loaded %d active app connection(s)", len(self._connections))
 
@@ -167,7 +160,7 @@ class ConnectionManager:
     def _fetch_app_connections(self) -> list[dict[str, Any]]:
         with self.connect_bootstrap() as db:
             cursor = db.cursor()
-            cursor.execute(APP_CONNECTIONS_SQL)
+            cursor.execute(ACTIVE_APP_CONNECTIONS_SQL)
             columns = [col[0] for col in cursor.description]
             return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
