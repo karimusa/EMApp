@@ -5,7 +5,7 @@ from logging.handlers import RotatingFileHandler
 
 from flask import Flask, redirect, session, url_for
 
-from config.settings import Config
+from config.settings import Config, apply_runtime_config
 
 
 def create_app(config_class=Config):
@@ -16,6 +16,7 @@ def create_app(config_class=Config):
         static_folder="../static",
     )
     app.config.from_object(config_class)
+    apply_runtime_config(app)
     _configure_logging(app)
 
     from app.routes.admin import admin_bp

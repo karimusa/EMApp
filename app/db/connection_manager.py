@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Generator, Optional
 
 from app.db.crypto import decrypt_password
+from config.settings import should_use_mock_data
 
 if TYPE_CHECKING:
     import pyodbc
@@ -169,8 +170,7 @@ def init_connection_manager(app) -> ConnectionManager:
     _connection_manager = ConnectionManager(app.config)
     if app.config.get("TESTING"):
         return _connection_manager
-    mode = (app.config.get("DATA_SOURCE") or "auto").lower()
-    if mode == "mock":
+    if should_use_mock_data(app.config):
         return _connection_manager
     if app.config.get("BOOTSTRAP_SERVER"):
         try:

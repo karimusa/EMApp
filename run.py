@@ -2,9 +2,9 @@
 
 import os
 
-from dotenv import load_dotenv
+from config.settings import load_env_file
 
-load_dotenv()
+load_env_file()
 
 from app import create_app
 from config.settings import DevelopmentConfig, ProductionConfig, TestingConfig

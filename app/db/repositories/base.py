@@ -7,20 +7,13 @@ from typing import Any
 from flask import current_app, has_app_context
 
 from app.db.connection_manager import get_connection_manager
+from config.settings import should_use_mock_data
 
 
 def use_mock_data() -> bool:
     if not has_app_context():
         return True
-    cfg = current_app.config
-    if cfg.get("TESTING"):
-        return True
-    mode = (cfg.get("DATA_SOURCE") or "auto").lower()
-    if mode == "mock":
-        return True
-    if mode == "sql":
-        return False
-    return not bool(cfg.get("BOOTSTRAP_SERVER"))
+    return should_use_mock_data(current_app.config)
 
 
 def data_source_label() -> str:

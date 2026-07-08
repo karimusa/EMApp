@@ -24,9 +24,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from dotenv import load_dotenv
+from config.settings import load_env_file
 
-load_dotenv(ROOT / ".env")
+load_env_file()
 
 from werkzeug.security import generate_password_hash
 
