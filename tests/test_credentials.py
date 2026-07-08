@@ -116,3 +116,25 @@ def test_matches_bootstrap_target_case_insensitive():
         "MonthEndApp",
         BOOTSTRAP_CONFIG,
     )
+
+
+def test_matches_bootstrap_target_ignores_sql_instance_suffix():
+    assert matches_bootstrap_target(
+        "SDAZ001MLD21\\SQLEXPRESS",
+        "MonthEndOrchestrationDB",
+        "MonthEndApp",
+        BOOTSTRAP_CONFIG,
+    )
+
+
+def test_is_one_way_hash_detects_spaced_hex():
+    spaced = " ".join(USER_SHA256[i : i + 4] for i in range(0, 64, 4))
+    assert is_one_way_hash(spaced)
+
+
+def test_stored_credential_skips_hash_in_encrypted_column():
+    row = {
+        "sql_password_encrypted": USER_SHA256,
+        "sql_password_hash": USER_SHA256,
+    }
+    assert stored_credential_from_row(row) == USER_SHA256

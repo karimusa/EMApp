@@ -23,7 +23,7 @@ def test_login_blocks_when_primary_not_ready(client):
     )
     manager = MagicMock()
     manager.get_primary_error.return_value = message
-    manager.validate_primary.return_value = None
+    manager.reload.return_value = None
 
     with patch("app.routes.auth.use_mock_data", return_value=False), patch(
         "app.routes.auth.get_connection_manager", return_value=manager

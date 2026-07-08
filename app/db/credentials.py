@@ -33,12 +33,20 @@ class ConnectionCredentialError(ValueError):
 
 
 def is_one_way_hash(value: str | None) -> bool:
-    text = (value or "").strip()
-    if text.lower().startswith("0x"):
-        text = text[2:].strip()
+    text = _normalize_credential_text(value)
     if not text:
         return False
-    return any(pattern.match(text) for pattern in _ONE_WAY_HASH_PATTERNS)
+    if any(pattern.match(text) for pattern in _ONE_WAY_HASH_PATTERNS):
+        return True
+    compact = re.sub(r"[^0-9a-fA-F]", "", text)
+    return len(compact) in {40, 64, 128} and compact == text
+
+
+def _normalize_credential_text(value: str | None) -> str:
+    text = (value or "").strip().lstrip("\ufeff")
+    if text.lower().startswith("0x"):
+        text = text[2:].strip()
+    return re.sub(r"\s+", "", text)
 
 
 def is_fernet_ciphertext(value: str | None) -> bool:
@@ -50,12 +58,28 @@ def stored_credential_from_row(row: dict[str, Any]) -> str | None:
     """Prefer sql_password_encrypted; fall back to legacy sql_password_hash."""
     encrypted = (row.get("sql_password_encrypted") or "").strip()
     legacy = (row.get("sql_password_hash") or "").strip()
-    value = encrypted or legacy
-    return value or None
+
+    if encrypted and not is_one_way_hash(encrypted):
+        return encrypted
+    if legacy:
+        return legacy
+    if encrypted:
+        return encrypted
+    return None
 
 
 def _normalize_sql_identifier(value: str | None) -> str:
     return (value or "").strip().lower()
+
+
+def _normalize_server_name(value: str | None) -> str:
+    """Compare SQL Server host names without instance or port suffixes."""
+    server = _normalize_sql_identifier(value)
+    if "\\" in server:
+        server = server.split("\\", 1)[0]
+    if "," in server:
+        server = server.split(",", 1)[0]
+    return server
 
 
 def matches_bootstrap_target(
@@ -64,13 +88,21 @@ def matches_bootstrap_target(
     sql_username: str,
     config: dict,
 ) -> bool:
+    bootstrap_user = (config.get("BOOTSTRAP_USER") or "").strip()
+    runtime_user = (sql_username or "").strip()
+    if runtime_user and bootstrap_user:
+        users_match = _normalize_sql_identifier(runtime_user) == _normalize_sql_identifier(
+            bootstrap_user
+        )
+    else:
+        users_match = not runtime_user or not bootstrap_user
+
     return (
-        _normalize_sql_identifier(server_name)
-        == _normalize_sql_identifier(config.get("BOOTSTRAP_SERVER"))
+        _normalize_server_name(server_name)
+        == _normalize_server_name(config.get("BOOTSTRAP_SERVER"))
         and _normalize_sql_identifier(database_name)
         == _normalize_sql_identifier(config.get("BOOTSTRAP_DATABASE"))
-        and _normalize_sql_identifier(sql_username)
-        == _normalize_sql_identifier(config.get("BOOTSTRAP_USER"))
+        and users_match
     )
 
 
@@ -100,7 +132,7 @@ def resolve_sql_login_password(
     config: dict | None = None,
 ) -> str:
     """Return a SQL Server login password or raise ConnectionCredentialError."""
-    raw = (stored_credential or "").strip()
+    raw = _normalize_credential_text(stored_credential)
     env = environment_name or "connection"
     fallback = bootstrap_password_fallback(
         server_name=server_name,
@@ -111,6 +143,7 @@ def resolve_sql_login_password(
 
     if not raw:
         if fallback:
+            logger.info("%s: using BOOTSTRAP_PASSWORD for runtime SQL connection", env)
             return fallback
         raise ConnectionCredentialError(
             f"{env}: no SQL login password configured. "
@@ -122,7 +155,7 @@ def resolve_sql_login_password(
     if is_one_way_hash(raw):
         if fallback:
             logger.info(
-                "%s: ignoring one-way hash in app_connections; using bootstrap password",
+                "%s: ignoring one-way hash in app_connections; using BOOTSTRAP_PASSWORD",
                 env,
             )
             return fallback
@@ -133,17 +166,27 @@ def resolve_sql_login_password(
             "sql_password_encrypted. One-way hashes belong only in dbo.users.password_hash."
         )
 
-    if is_fernet_ciphertext(raw):
+    stored_value = (stored_credential or "").strip()
+    if is_fernet_ciphertext(stored_value):
         if not (secret_key or "").strip():
             if fallback:
+                logger.info(
+                    "%s: Fernet credential present without CONNECTION_SECRET_KEY; "
+                    "using BOOTSTRAP_PASSWORD",
+                    env,
+                )
                 return fallback
             raise ConnectionCredentialError(
                 f"{env}: sql_password_encrypted is Fernet-encrypted but "
                 "CONNECTION_SECRET_KEY is not set in .env."
             )
-        password = decrypt_password(raw, secret_key)
+        password = decrypt_password(stored_value, secret_key)
         if not password:
             if fallback:
+                logger.info(
+                    "%s: could not decrypt runtime credential; using BOOTSTRAP_PASSWORD",
+                    env,
+                )
                 return fallback
             raise ConnectionCredentialError(
                 f"{env}: could not decrypt sql_password_encrypted. "
@@ -152,4 +195,4 @@ def resolve_sql_login_password(
             )
         return password
 
-    return raw
+    return stored_value

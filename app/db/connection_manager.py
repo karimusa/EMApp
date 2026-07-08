@@ -111,11 +111,12 @@ class AppConnection:
     database_name: str
     auth_type: str
     sql_username: str
-    password: str
+    stored_credential: str | None
     description: str
     is_active: bool
     driver: str
     trust_server_certificate: str = "yes"
+    password: str = ""
 
 
 class ConnectionManager:
@@ -127,7 +128,6 @@ class ConnectionManager:
 
     def load_connections(self) -> None:
         rows = self._fetch_app_connections()
-        secret_key = self._config.get("CONNECTION_SECRET_KEY", "")
         self._connections = {}
         self._connection_errors = {}
         self._primary_error = None
@@ -136,21 +136,20 @@ class ConnectionManager:
             env_name = str(row["environment_name"]).upper()
             auth_type = (row.get("auth_type") or "sql").strip()
             sql_username = row.get("sql_username") or ""
+            stored_credential = stored_credential_from_row(row)
 
             if _uses_integrated_auth(auth_type):
                 password = ""
             else:
                 try:
-                    password = resolve_sql_login_password(
-                        stored_credential_from_row(row),
-                        secret_key=secret_key,
-                        environment_name=env_name,
+                    password = self._resolve_runtime_password(
+                        env_name,
                         server_name=row["server_name"],
                         database_name=row["database_name"],
                         sql_username=sql_username,
-                        config=self._config,
+                        stored_credential=stored_credential,
                     )
-                except ConnectionCredentialError as exc:
+                except ConnectionError as exc:
                     self._connection_errors[env_name] = str(exc)
                     password = ""
                     logger.error("%s", exc)
@@ -162,6 +161,7 @@ class ConnectionManager:
                 database_name=row["database_name"],
                 auth_type=auth_type,
                 sql_username=sql_username,
+                stored_credential=stored_credential,
                 password=password,
                 description=row.get("description") or "",
                 is_active=True,
@@ -171,6 +171,28 @@ class ConnectionManager:
             self._connections[env_name] = conn
 
         logger.info("Loaded %d active app connection(s)", len(self._connections))
+
+    def _resolve_runtime_password(
+        self,
+        environment_name: str,
+        *,
+        server_name: str,
+        database_name: str,
+        sql_username: str,
+        stored_credential: str | None,
+    ) -> str:
+        try:
+            return resolve_sql_login_password(
+                stored_credential,
+                secret_key=self._config.get("CONNECTION_SECRET_KEY", ""),
+                environment_name=environment_name,
+                server_name=server_name,
+                database_name=database_name,
+                sql_username=sql_username,
+                config=self._config,
+            )
+        except ConnectionCredentialError as exc:
+            raise ConnectionError(str(exc)) from exc
 
     def validate_primary(self) -> None:
         """Verify PRIMARY credentials without allowing login when misconfigured."""
@@ -215,7 +237,21 @@ class ConnectionManager:
     def all_connections(self) -> dict[str, AppConnection]:
         return dict(self._connections)
 
-    def build_connection_string(self, conn: AppConnection) -> str:
+    def build_connection_string(
+        self,
+        conn: AppConnection,
+        *,
+        password: str | None = None,
+    ) -> str:
+        resolved_password = password
+        if resolved_password is None and not _uses_integrated_auth(conn.auth_type):
+            resolved_password = self._resolve_runtime_password(
+                conn.environment_name,
+                server_name=conn.server_name,
+                database_name=conn.database_name,
+                sql_username=conn.sql_username,
+                stored_credential=conn.stored_credential,
+            )
         parts = [
             f"DRIVER={{{conn.driver}}}",
             f"SERVER={conn.server_name}",
@@ -224,7 +260,7 @@ class ConnectionManager:
         if _uses_integrated_auth(conn.auth_type):
             parts.append("Trusted_Connection=yes")
         else:
-            parts.extend([f"UID={conn.sql_username}", f"PWD={conn.password}"])
+            parts.extend([f"UID={conn.sql_username}", f"PWD={resolved_password or ''}"])
         parts.append(f"TrustServerCertificate={conn.trust_server_certificate}")
         return ";".join(parts)
 
@@ -247,13 +283,29 @@ class ConnectionManager:
             raise ConnectionError(
                 f"Environment '{environment_name}' not found or not active"
             )
-        if not _uses_integrated_auth(conn_info.auth_type) and not conn_info.password:
-            raise ConnectionError(
-                f"Environment '{environment_name}' has no SQL login password configured."
-            )
+        if not _uses_integrated_auth(conn_info.auth_type):
+            try:
+                runtime_password = self._resolve_runtime_password(
+                    env_name,
+                    server_name=conn_info.server_name,
+                    database_name=conn_info.database_name,
+                    sql_username=conn_info.sql_username,
+                    stored_credential=conn_info.stored_credential,
+                )
+            except ConnectionError:
+                raise
+            if not runtime_password:
+                raise ConnectionError(
+                    f"Environment '{environment_name}' has no SQL login password configured."
+                )
+        else:
+            runtime_password = None
 
         try:
-            db = pyodbc.connect(self.build_connection_string(conn_info), timeout=30)
+            db = pyodbc.connect(
+                self.build_connection_string(conn_info, password=runtime_password),
+                timeout=30,
+            )
         except Exception as exc:
             if is_pyodbc_error(exc):
                 raise _friendly_sql_error(env_name, exc) from exc

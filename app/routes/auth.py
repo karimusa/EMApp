@@ -32,7 +32,7 @@ def login():
     if not use_mock_data():
         try:
             manager = get_connection_manager()
-            manager.validate_primary()
+            manager.reload()
             config_error = manager.get_primary_error()
         except RuntimeError:
             pass
