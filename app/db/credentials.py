@@ -9,10 +9,13 @@ Runtime SQL connections must use the real SQL Server login password, stored as:
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 
 from app.db.crypto import decrypt_password
+
+logger = logging.getLogger(__name__)
 
 _ONE_WAY_HASH_PATTERNS = (
     re.compile(r"^[0-9a-fA-F]{64}$"),  # SHA-256 hex
@@ -31,6 +34,8 @@ class ConnectionCredentialError(ValueError):
 
 def is_one_way_hash(value: str | None) -> bool:
     text = (value or "").strip()
+    if text.lower().startswith("0x"):
+        text = text[2:].strip()
     if not text:
         return False
     return any(pattern.match(text) for pattern in _ONE_WAY_HASH_PATTERNS)
@@ -69,6 +74,21 @@ def matches_bootstrap_target(
     )
 
 
+def bootstrap_password_fallback(
+    *,
+    server_name: str,
+    database_name: str,
+    sql_username: str,
+    config: dict | None,
+) -> str | None:
+    if not config or not matches_bootstrap_target(
+        server_name, database_name, sql_username, config
+    ):
+        return None
+    bootstrap_password = (config.get("BOOTSTRAP_PASSWORD") or "").strip()
+    return bootstrap_password or None
+
+
 def resolve_sql_login_password(
     stored_credential: str | None,
     *,
@@ -82,14 +102,16 @@ def resolve_sql_login_password(
     """Return a SQL Server login password or raise ConnectionCredentialError."""
     raw = (stored_credential or "").strip()
     env = environment_name or "connection"
+    fallback = bootstrap_password_fallback(
+        server_name=server_name,
+        database_name=database_name,
+        sql_username=sql_username,
+        config=config,
+    )
 
     if not raw:
-        if config and matches_bootstrap_target(
-            server_name, database_name, sql_username, config
-        ):
-            bootstrap_password = (config.get("BOOTSTRAP_PASSWORD") or "").strip()
-            if bootstrap_password:
-                return bootstrap_password
+        if fallback:
+            return fallback
         raise ConnectionCredentialError(
             f"{env}: no SQL login password configured. "
             "Set orchestration.app_connections.sql_password_encrypted to the SQL "
@@ -98,6 +120,12 @@ def resolve_sql_login_password(
         )
 
     if is_one_way_hash(raw):
+        if fallback:
+            logger.info(
+                "%s: ignoring one-way hash in app_connections; using bootstrap password",
+                env,
+            )
+            return fallback
         raise ConnectionCredentialError(
             f"{env}: orchestration.app_connections stores a one-way hash "
             f"({raw[:8]}…), which cannot be used for SQL Server authentication. "
@@ -107,12 +135,16 @@ def resolve_sql_login_password(
 
     if is_fernet_ciphertext(raw):
         if not (secret_key or "").strip():
+            if fallback:
+                return fallback
             raise ConnectionCredentialError(
                 f"{env}: sql_password_encrypted is Fernet-encrypted but "
                 "CONNECTION_SECRET_KEY is not set in .env."
             )
         password = decrypt_password(raw, secret_key)
         if not password:
+            if fallback:
+                return fallback
             raise ConnectionCredentialError(
                 f"{env}: could not decrypt sql_password_encrypted. "
                 "Verify CONNECTION_SECRET_KEY matches the key used by "

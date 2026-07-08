@@ -48,13 +48,30 @@ def test_resolve_plain_text_password():
     assert password == "MonthEndApp"
 
 
-def test_resolve_rejects_one_way_hash():
+def test_resolve_rejects_one_way_hash_without_bootstrap_match():
     with pytest.raises(ConnectionCredentialError, match="one-way hash"):
         resolve_sql_login_password(
             USER_SHA256,
             secret_key="",
-            environment_name="PRIMARY",
+            environment_name="REMOTE_SQL",
+            server_name="OTHER-SERVER",
+            database_name="OtherDB",
+            sql_username="OtherUser",
+            config=BOOTSTRAP_CONFIG,
         )
+
+
+def test_resolve_one_way_hash_uses_bootstrap_fallback_for_primary():
+    password = resolve_sql_login_password(
+        USER_SHA256,
+        secret_key="",
+        environment_name="PRIMARY",
+        server_name="SDAZ001MLD21",
+        database_name="MonthEndOrchestrationDB",
+        sql_username="MonthEndApp",
+        config=BOOTSTRAP_CONFIG,
+    )
+    assert password == "MonthEndApp"
 
 
 def test_resolve_empty_uses_bootstrap_fallback():

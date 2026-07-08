@@ -39,8 +39,10 @@ def _primary_failure_hint(rows: list[dict]) -> str | None:
     if stored and is_one_way_hash(stored):
         return (
             "Hint: PRIMARY stores a one-way hash in sql_password_encrypted/"
-            "sql_password_hash. Replace it with the real SQL login password or "
-            "Fernet ciphertext from scripts/encrypt_password.py."
+            "sql_password_hash. When PRIMARY matches bootstrap server/database/user, "
+            "BOOTSTRAP_PASSWORD is used automatically after you deploy the latest code. "
+            "Otherwise replace the hash with the real SQL login password or Fernet "
+            "ciphertext from scripts/encrypt_password.py."
         )
     if not stored:
         return (

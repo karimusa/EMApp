@@ -99,6 +99,10 @@ def _friendly_sql_error(environment_name: str, exc: Exception) -> ConnectionErro
     )
 
 
+def is_pyodbc_error(exc: BaseException) -> bool:
+    return exc.__class__.__module__.startswith("pyodbc")
+
+
 @dataclass
 class AppConnection:
     connection_id: int
@@ -149,6 +153,7 @@ class ConnectionManager:
                 except ConnectionCredentialError as exc:
                     self._connection_errors[env_name] = str(exc)
                     password = ""
+                    logger.error("%s", exc)
 
             conn = AppConnection(
                 connection_id=int(row["connection_id"]),
@@ -182,7 +187,10 @@ class ConnectionManager:
             self.test_connection("PRIMARY")
         except ConnectionError as exc:
             self._primary_error = str(exc)
-        except Exception:
+        except Exception as exc:
+            if is_pyodbc_error(exc):
+                self._primary_error = str(_friendly_sql_error("PRIMARY", exc))
+                return
             logger.exception("PRIMARY connection validation failed")
             self._primary_error = (
                 "PRIMARY database connection failed. Contact your administrator."
@@ -247,7 +255,7 @@ class ConnectionManager:
         try:
             db = pyodbc.connect(self.build_connection_string(conn_info), timeout=30)
         except Exception as exc:
-            if exc.__class__.__module__.startswith("pyodbc"):
+            if is_pyodbc_error(exc):
                 raise _friendly_sql_error(env_name, exc) from exc
             raise
         try:
@@ -319,9 +327,12 @@ def init_connection_manager(app) -> ConnectionManager:
     if app.config.get("BOOTSTRAP_SERVER"):
         try:
             _connection_manager.load_connections()
-            _connection_manager.validate_primary()
         except Exception:
             logger.exception("Failed to load app_connections on startup")
+        try:
+            _connection_manager.validate_primary()
+        except Exception:
+            logger.exception("Failed to validate PRIMARY connection on startup")
     return _connection_manager
 
 

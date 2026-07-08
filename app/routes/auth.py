@@ -6,7 +6,8 @@ from flask import Blueprint, redirect, render_template, request, session, url_fo
 
 from app.auth.decorators import login_required
 from app.auth.service import AuthService
-from app.db.connection_manager import get_connection_manager
+from app.db.connection_manager import get_connection_manager, is_pyodbc_error
+from app.db.repositories.base import use_mock_data
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +29,13 @@ def login():
         return redirect(url_for("dashboard.index"))
 
     config_error = None
-    try:
-        config_error = get_connection_manager().get_primary_error()
-    except RuntimeError:
-        pass
+    if not use_mock_data():
+        try:
+            manager = get_connection_manager()
+            manager.validate_primary()
+            config_error = manager.get_primary_error()
+        except RuntimeError:
+            pass
 
     error = config_error
     if request.method == "POST":
@@ -49,7 +53,7 @@ def login():
                 logger.exception("Database connection error during login")
                 error = str(exc) or _database_unavailable_message()
             except Exception as exc:
-                if exc.__class__.__module__.startswith("pyodbc"):
+                if is_pyodbc_error(exc):
                     logger.exception("SQL error during login")
                     error = _database_unavailable_message()
                 else:
