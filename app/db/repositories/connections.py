@@ -1,10 +1,10 @@
-"""Connection repository — orchestration.app_connections."""
+"""Connection repository — orchestration.app_connections (database registry)."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from app.db.connection_manager import get_connection_manager
+from app.db.connection_manager import APP_CONNECTIONS_SQL, get_connection_manager
 from app.db.formatters import coerce_bool, format_timestamp
 from app.db.repositories.base import query_primary, use_mock_data
 
@@ -16,25 +16,7 @@ class ConnectionsRepository:
 
             return mock_data.get_app_connections()
 
-        rows = query_primary(
-            """
-            SELECT
-                connection_id,
-                connection_name,
-                server_name,
-                database_name,
-                username,
-                password_encrypted,
-                password_plain,
-                driver,
-                trust_server_certificate,
-                is_active,
-                created_at,
-                updated_at
-            FROM orchestration.app_connections
-            ORDER BY connection_name
-            """
-        )
+        rows = query_primary(APP_CONNECTIONS_SQL)
         return [self._normalize(row) for row in rows]
 
     def get_active(self) -> dict[str, Any]:

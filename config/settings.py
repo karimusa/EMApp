@@ -1,4 +1,16 @@
-"""Application configuration — single source of truth for .env and runtime settings."""
+"""Application configuration — single source of truth for .env and runtime settings.
+
+Enterprise connection model
+---------------------------
+``.env`` supplies only the **bootstrap** connection to MonthEndOrchestrationDB
+(``BOOTSTRAP_*``). After bootstrap succeeds, every operational SQL connection
+is loaded from ``orchestration.app_connections`` by ``ConnectionManager`` and
+used exclusively through the repository layer.
+
+The running application never reads runtime server/database names from ``.env``.
+Seed-time connection targets (``SEED_*``) belong in ``scripts/seed.env``, not
+the application ``.env``.
+"""
 
 from __future__ import annotations
 
@@ -77,11 +89,12 @@ def should_use_mock_data(config: dict) -> bool:
 
 
 def print_config_debug(config: dict) -> None:
-    """Temporary debug output — shows what configuration the app actually loaded."""
+    """Temporary debug output — bootstrap settings only (not runtime connections)."""
     print("DATA_SOURCE =", config.get("DATA_SOURCE"))
     print("BOOTSTRAP_SERVER =", config.get("BOOTSTRAP_SERVER"))
     print("BOOTSTRAP_DATABASE =", config.get("BOOTSTRAP_DATABASE"))
     print(".env loaded from =", config.get("ENV_FILE_PATH"))
+    print("Runtime connections = orchestration.app_connections (loaded after bootstrap)")
 
 
 def apply_runtime_config(app) -> None:

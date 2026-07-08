@@ -24,10 +24,7 @@ class SqlAgentRepository:
 
         jobs: list[dict[str, Any]] = []
         manager = get_connection_manager()
-        for conn_name in ("PRIMARY", "REMOTE_SQL"):
-            conn = manager.get(conn_name)
-            if not conn:
-                continue
+        for conn_name, conn in sorted(manager.all_connections().items()):
             try:
                 rows = query_connection(conn_name, f"EXEC {PROC_NAME}")
                 for row in rows:

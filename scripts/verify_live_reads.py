@@ -50,7 +50,10 @@ def main() -> int:
         source = data.data_source_label()
         print(f"Data source: {source}")
         if source == "mock":
-            print("WARNING: DATA_SOURCE is mock — set BOOTSTRAP_SERVER in .env for live SQL.")
+            print(
+                "WARNING: DATA_SOURCE is mock — set BOOTSTRAP_* in .env "
+                "to bootstrap MonthEndOrchestrationDB."
+            )
             if not args.connections_only:
                 print("Running mock read checks anyway...")
         else:

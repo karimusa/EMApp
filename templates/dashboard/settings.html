@@ -18,7 +18,8 @@
     </div>
 
     <p class="page-hint">
-        Connection settings are loaded from <code>orchestration.app_connections</code>.
+        Operational connections are loaded from <code>orchestration.app_connections</code>
+        after bootstrap. Server names are not configured in <code>.env</code>.
         {% if data_source == 'mock' %}
         Currently displaying mock data — live values appear when MonthEndOrchestrationDB is connected.
         {% endif %}

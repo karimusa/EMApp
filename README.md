@@ -28,13 +28,33 @@ Open **http://127.0.0.1:50006/login**
 
 ## Database-driven configuration
 
-1. Set bootstrap credentials in `.env` (copy from `.env.example`)
-2. Deploy `docs/planning/sql/schema.sql`
-3. Seed: `python scripts/seed_database.py` (set `SEED_*` connection vars in `.env`)
-4. Set `DATA_SOURCE=sql` and restart
+### Bootstrap (`.env` only)
 
-At runtime the app loads **orchestration.app_connections** — server and database
-names are never hardcoded in application code.
+The running application reads **one** SQL target from `.env`:
+
+- `BOOTSTRAP_SERVER` — where MonthEndOrchestrationDB lives (e.g. `SDAZ001MLD21`)
+- `BOOTSTRAP_DATABASE`, `BOOTSTRAP_USER`, `BOOTSTRAP_PASSWORD`
+
+That bootstrap connection is used solely to reach MonthEndOrchestrationDB and load
+`orchestration.app_connections`. No other runtime server names belong in `.env`.
+
+### Runtime connections (database only)
+
+After bootstrap succeeds, every operational SQL connection (`PRIMARY`, `REMOTE_SQL`, etc.)
+is loaded from `orchestration.app_connections`. Connection strings are built
+dynamically by `ConnectionManager`; repositories are the only layer that uses them.
+
+### Initial setup
+
+1. Copy `.env.example` to `.env` and set bootstrap credentials
+2. Deploy `docs/planning/sql/schema.sql`
+3. Copy `scripts/seed.env.example` to `scripts/seed.env` and set seed targets
+4. Run `python scripts/seed_database.py` (writes `orchestration.app_connections`)
+5. Set `DATA_SOURCE=sql` (or `auto` with bootstrap set) and restart
+6. Run `python scripts/verify_live_reads.py`
+
+Server and database names for operational work live in the database table —
+never duplicated in `.env`.
 
 ## Offline / testing
 

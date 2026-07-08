@@ -1,4 +1,13 @@
-"""Database connection manager — bootstrap + orchestration.app_connections."""
+"""Database connection manager — bootstrap + orchestration.app_connections.
+
+Bootstrap flow
+--------------
+1. Read ``BOOTSTRAP_*`` from ``.env`` (only place server names belong in env).
+2. Connect to MonthEndOrchestrationDB.
+3. SELECT active rows from ``orchestration.app_connections``.
+4. Build ODBC connection strings dynamically from those rows.
+5. Repositories call ``connect()`` / ``query_primary()`` / ``query_connection()``.
+"""
 
 from __future__ import annotations
 
@@ -14,6 +23,24 @@ if TYPE_CHECKING:
     import pyodbc
 
 logger = logging.getLogger(__name__)
+
+APP_CONNECTIONS_SQL = """
+    SELECT
+        connection_id,
+        connection_name,
+        server_name,
+        database_name,
+        username,
+        password_encrypted,
+        password_plain,
+        driver,
+        trust_server_certificate,
+        is_active,
+        created_at,
+        updated_at
+    FROM orchestration.app_connections
+    ORDER BY connection_name
+"""
 
 
 def _import_pyodbc():
@@ -138,26 +165,9 @@ class ConnectionManager:
             db.close()
 
     def _fetch_app_connections(self) -> list[dict[str, Any]]:
-        sql = """
-            SELECT
-                connection_id,
-                connection_name,
-                server_name,
-                database_name,
-                username,
-                password_encrypted,
-                password_plain,
-                driver,
-                trust_server_certificate,
-                is_active,
-                created_at,
-                updated_at
-            FROM orchestration.app_connections
-            ORDER BY connection_name
-        """
         with self.connect_bootstrap() as db:
             cursor = db.cursor()
-            cursor.execute(sql)
+            cursor.execute(APP_CONNECTIONS_SQL)
             columns = [col[0] for col in cursor.description]
             return [dict(zip(columns, row)) for row in cursor.fetchall()]
 

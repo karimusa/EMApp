@@ -4,8 +4,8 @@
 -- ============================================================
 -- orchestration.usp_GetMonitoredAgentJobs
 -- Returns monitored SQL Agent jobs for the UI in one result set.
--- Deploy on each connection database (PRIMARY uses msdb-linked or local msdb;
--- REMOTE_SQL uses msdb on SPAZ001EDM10).
+-- Deploy on each connection database that hosts monitored SQL Agent jobs.
+-- Server names come from orchestration.app_connections at runtime.
 -- ============================================================
 CREATE OR ALTER PROCEDURE orchestration.usp_GetMonitoredAgentJobs
 AS

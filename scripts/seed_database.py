@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
 """Seed MonthEndOrchestrationDB from the frozen STEP_REGISTRY and sample run data.
 
-Reads connection target values from environment variables (not hardcoded in code).
-Deploy schema.sql first, configure .env bootstrap credentials, then run:
+Bootstrap credentials (``.env`` — same file the running app uses):
+  BOOTSTRAP_SERVER, BOOTSTRAP_DATABASE, BOOTSTRAP_USER, BOOTSTRAP_PASSWORD
 
-  python scripts/seed_database.py
-
-Environment (seed rows for orchestration.app_connections):
+Seed connection targets (``scripts/seed.env`` — NOT read by the running app):
   SEED_PRIMARY_SERVER, SEED_PRIMARY_DATABASE, SEED_PRIMARY_USER, SEED_PRIMARY_PASSWORD
   SEED_REMOTE_SERVER,  SEED_REMOTE_DATABASE,  SEED_REMOTE_USER,  SEED_REMOTE_PASSWORD
 
-Bootstrap (to reach the database):
-  BOOTSTRAP_SERVER, BOOTSTRAP_DATABASE, BOOTSTRAP_USER, BOOTSTRAP_PASSWORD
+After seeding, the running application loads operational connections from
+``orchestration.app_connections`` only.
 """
 
 from __future__ import annotations
@@ -24,9 +22,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from dotenv import load_dotenv
+
 from config.settings import load_env_file
 
 load_env_file()
+seed_env = ROOT / "scripts" / "seed.env"
+if seed_env.is_file():
+    load_dotenv(seed_env, override=True)
 
 from werkzeug.security import generate_password_hash
 

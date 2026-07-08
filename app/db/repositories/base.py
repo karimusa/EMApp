@@ -1,4 +1,4 @@
-"""SQL repository helpers."""
+"""SQL repository helpers — all runtime connections come from ConnectionManager."""
 
 from __future__ import annotations
 
