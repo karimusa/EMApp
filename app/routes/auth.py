@@ -36,6 +36,12 @@ def login():
             config_error = manager.get_primary_error()
         except RuntimeError:
             pass
+        except Exception as exc:
+            logger.exception("PRIMARY validation failed during login")
+            if is_pyodbc_error(exc):
+                config_error = _database_unavailable_message()
+            else:
+                config_error = str(exc) or _database_unavailable_message()
 
     error = config_error
     if request.method == "POST":

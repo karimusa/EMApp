@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any, Generator, Optional
 
 from app.db.credentials import (
     ConnectionCredentialError,
+    is_one_way_hash,
     resolve_sql_login_password,
     stored_credential_from_row,
 )
@@ -297,6 +298,10 @@ class ConnectionManager:
             if not runtime_password:
                 raise ConnectionError(
                     f"Environment '{environment_name}' has no SQL login password configured."
+                )
+            if is_one_way_hash(runtime_password):
+                raise ConnectionError(
+                    f"{env_name}: refusing to connect with a one-way hash as the SQL password."
                 )
         else:
             runtime_password = None

@@ -7,6 +7,7 @@ import pytest
 from app.db.credentials import (
     ConnectionCredentialError,
     is_one_way_hash,
+    is_unusable_stored_credential,
     matches_bootstrap_target,
     resolve_sql_login_password,
     stored_credential_from_row,
@@ -46,6 +47,14 @@ def test_resolve_plain_text_password():
         environment_name="PRIMARY",
     )
     assert password == "MonthEndApp"
+
+
+def test_is_unusable_stored_credential_detects_hash():
+    assert is_unusable_stored_credential(USER_SHA256, secret_key="")
+
+
+def test_is_unusable_stored_credential_plain_text_is_usable():
+    assert not is_unusable_stored_credential("MonthEndApp", secret_key="")
 
 
 def test_resolve_rejects_one_way_hash_without_bootstrap_match():
