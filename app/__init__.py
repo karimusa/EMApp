@@ -28,6 +28,10 @@ def create_app(config_class=Config):
     app.register_blueprint(admin_bp)
     app.register_blueprint(api_bp)
 
+    from app.db.connection_manager import init_connection_manager
+
+    init_connection_manager(app)
+
     @app.route("/")
     def root():
         if session.get("user_id"):

@@ -1,21 +1,14 @@
 """Dashboard service — assembles the view model consumed by the template.
 
-Reads the mock rows in :mod:`app.dashboard.mock_data` today; the same methods
-will read the live ``orchestration.*`` tables later and return identical shapes.
+Reads from :mod:`app.dashboard.data` (SQL repositories or mock fallback).
 No execution logic lives here.
-
-Data sources per the schema:
-* summary cards -> ``orchestration.run_metrics``
-* step cards    -> ``orchestration.job_steps`` + ``orchestration.step_runs``
-* log panel     -> ``orchestration.db_execution_log``
-* run history   -> ``orchestration.job_runs``
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from app.dashboard import mock_data
+from app.dashboard import data as orchestration_data
 from app.dashboard.connections import ConnectionService
 
 
@@ -36,9 +29,9 @@ class DashboardService:
         self.connections = ConnectionService()
 
     def get_dashboard(self) -> dict[str, Any]:
-        job_steps = mock_data.get_job_steps()
-        step_runs = mock_data.get_step_runs()
-        validations = mock_data.get_validation_results()
+        job_steps = orchestration_data.get_job_steps()
+        step_runs = orchestration_data.get_step_runs()
+        validations = orchestration_data.get_validation_results()
 
         cards = [
             self._build_card(
@@ -50,7 +43,7 @@ class DashboardService:
         ]
 
         phases = []
-        for phase in mock_data.PHASES:
+        for phase in orchestration_data.PHASES:
             phase_cards = [c for c in cards if c["phase_code"] == phase["key"]]
             completed = sum(1 for c in phase_cards if c["execution_status"] == "Success")
             phases.append(
@@ -65,10 +58,10 @@ class DashboardService:
 
         return {
             "run": self._build_run_header(),
-            "metrics": mock_data.get_run_metrics(),
+            "metrics": orchestration_data.get_run_metrics(),
             "phases": phases,
             "execution_log": self._build_log(),
-            "run_history": mock_data.get_job_runs(),
+            "run_history": orchestration_data.get_job_runs(),
             "active_connection": self.connections.get_active(),
         }
 
@@ -99,12 +92,11 @@ class DashboardService:
 
         Jobs are grouped by server, ordered by the connection registry.
         """
-        jobs = mock_data.get_monitored_agent_jobs()
+        jobs = orchestration_data.get_monitored_agent_jobs()
 
-        # Attach the trigger step + execute proc (from the frozen registry).
         triggers = {
             s.agent_job: {"step_name": s.step_name, "execute_proc": s.execute_proc}
-            for s in mock_data.STEP_REGISTRY
+            for s in orchestration_data.STEP_REGISTRY
             if s.agent_job
         }
         for job in jobs:
@@ -137,14 +129,14 @@ class DashboardService:
         }
 
     def _build_run_header(self) -> dict[str, Any]:
-        return dict(mock_data.get_current_run())
+        return dict(orchestration_data.get_current_run())
 
     def _build_log(self) -> list[dict[str, Any]]:
         return self.get_logs()["rows"]
 
     def get_run_history(self) -> dict[str, Any]:
         """Full run history view model (``orchestration.job_runs``)."""
-        runs = mock_data.get_job_runs()
+        runs = orchestration_data.get_job_runs()
         return {
             "runs": runs,
             "totals": {
@@ -159,13 +151,13 @@ class DashboardService:
     def get_logs(self) -> dict[str, Any]:
         """Full execution log view model (``orchestration.db_execution_log``)."""
         rows = []
-        for row in mock_data.get_execution_log():
+        for row in orchestration_data.get_execution_log():
             enriched = dict(row)
             enriched["duration"] = _format_duration(row.get("duration_seconds"))
             rows.append(enriched)
         return {
             "rows": rows,
-            "phases": mock_data.PHASES,
+            "phases": orchestration_data.PHASES,
             "totals": {
                 "total": len(rows),
                 "success": sum(1 for r in rows if r["status"] == "Success"),
@@ -177,8 +169,8 @@ class DashboardService:
 
     def get_validation(self) -> dict[str, Any]:
         """Validation results across all steps."""
-        job_steps = {s["step_id"]: s for s in mock_data.get_job_steps()}
-        validations = mock_data.get_validation_results()
+        job_steps = {s["step_id"]: s for s in orchestration_data.get_job_steps()}
+        validations = orchestration_data.get_validation_results()
         rows = []
         for step_id, result in sorted(validations.items()):
             step = job_steps[step_id]
@@ -207,11 +199,11 @@ class DashboardService:
 
     def get_monitoring(self) -> dict[str, Any]:
         """Operations monitoring overview."""
-        metrics = mock_data.get_run_metrics()
-        jobs = mock_data.get_monitored_agent_jobs()
+        metrics = orchestration_data.get_run_metrics()
+        jobs = orchestration_data.get_monitored_agent_jobs()
         connections = self.connections.list_connections()
         return {
-            "run": mock_data.get_current_run(),
+            "run": orchestration_data.get_current_run(),
             "metrics": metrics,
             "connections": [
                 {
@@ -220,7 +212,9 @@ class DashboardService:
                     "database_name": c["database_name"],
                     "is_active": c["is_active"],
                     "status": "Connected" if c["is_active"] else "Inactive",
-                    "latency_ms": 12 if c["is_active"] else None,
+                    "latency_ms": orchestration_data.connection_latency_ms(c["connection_name"])
+                    if c["is_active"]
+                    else None,
                 }
                 for c in connections
             ],
@@ -254,6 +248,6 @@ class DashboardService:
         return {
             "connections": connections,
             "app_version": "1.0.0",
-            "data_source": "mock",
+            "data_source": orchestration_data.data_source_label(),
             "active_connection": self.connections.get_active(),
         }

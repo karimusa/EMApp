@@ -1,8 +1,10 @@
 # RRA Month-End Orchestration
 
-Enterprise month-end orchestration console for SQL Server. The UI is complete against mock data shaped like `MonthEndOrchestrationDB`; the next milestone is wiring the live database.
+Enterprise month-end orchestration console for SQL Server. The UI reads through
+`app/dashboard/data.py`, which delegates to SQL repositories when bootstrap
+credentials are configured, or mock data otherwise.
 
-## Run locally
+## Run locally (mock — no SQL Server required)
 
 ```bash
 python3 -m venv .venv
@@ -12,6 +14,22 @@ python run.py
 ```
 
 Open **http://127.0.0.1:50006/login**
+
+## Connect to MonthEndOrchestrationDB
+
+Copy `.env.example` to `.env` and set:
+
+```bash
+DATA_SOURCE=sql
+BOOTSTRAP_SERVER=SPUS001BDBEXT
+BOOTSTRAP_DATABASE=MonthEndOrchestrationDB
+BOOTSTRAP_USER=svc_orchestration
+BOOTSTRAP_PASSWORD=...
+CONNECTION_SECRET_KEY=...   # Fernet key for app_connections passwords
+```
+
+Deploy tables from `docs/planning/sql/schema.sql`, then seed users, connections,
+and job steps. The app loads `orchestration.app_connections` on startup.
 
 ## Test users (mock `dbo.users`)
 

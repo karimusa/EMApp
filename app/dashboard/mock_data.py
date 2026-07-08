@@ -21,23 +21,15 @@ in the ``app_connections`` rows below and are resolved from there.
 
 from __future__ import annotations
 
-import re
 from datetime import datetime, timedelta
-from typing import Any, NamedTuple
+from typing import Any
 
 from werkzeug.security import generate_password_hash
 
+from app.db.registry import PHASES, STEP_REGISTRY, StepDef, job_key
+
 JOB_ID = 1
 RUN_ID = 42
-
-# Ordered phases + display labels for the UI tabs (matches the job_steps CHECK).
-PHASES: list[dict[str, str]] = [
-    {"key": "PRE", "label": "PRE"},
-    {"key": "MAIN", "label": "MAIN"},
-    {"key": "BI", "label": "BI"},
-    {"key": "DAY5", "label": "DAY 5"},
-    {"key": "POST", "label": "POST"},
-]
 
 EXECUTION_STATUSES = ("Success", "Running", "Pending", "Failed", "Skipped")
 VALIDATION_STATUSES = ("Passed", "Failed", "Pending", "NotRequired")
@@ -161,100 +153,7 @@ def get_jobs() -> list[dict[str, Any]]:
     ]
 
 
-class StepDef(NamedTuple):
-    """One frozen row of the proc-mapping contract (mirrors job_steps)."""
-
-    phase_code: str
-    step_name: str
-    connection_name: str          # -> orchestration.app_connections.connection_name
-    execute_proc: str
-    validate_proc: str
-    agent_job: str | None = None  # monitored SQL Agent job this step launches
-
-
-# =========================================================================
-# FROZEN PROC-MAPPING REGISTRY — the SINGLE source of truth for each step's
-# phase_code, server (via connection), execute proc, validation proc, and the
-# SQL Agent job it launches. Do not redefine these mappings anywhere else.
-# Validation names use the newer usp_validate_* pattern; email procs use the
-# orchestration schema. Mirrors orchestration.job_steps; mutable run state is
-# kept separately in _RUNTIME (mirrors orchestration.step_runs).
-# =========================================================================
-STEP_REGISTRY: list[StepDef] = [
-    # ---- PRE ----
-    StepDef("PRE", "Send Start Email", "PRIMARY",
-            "orchestration.sp_send_month_end_start_email",
-            "orchestration.sp_validate_month_end_start_email"),
-    StepDef("PRE", "Backup BI DB", "PRIMARY",
-            "usp_backup_bi", "usp_validate_backup_bi"),
-    StepDef("PRE", "Backup RRAPS DB", "PRIMARY",
-            "usp_backup_RRAPS", "usp_validate_backup_RRAPS"),
-    StepDef("PRE", "Backup Warehouse DB", "PRIMARY",
-            "usp_backup_warehouse", "usp_validate_backup_warehouse"),
-    # ---- MAIN ----
-    StepDef("MAIN", "Populate KeyClient", "PRIMARY",
-            "usp_me_01_populate_keyclient", "usp_validate_me_01_populate_keyclient"),
-    StepDef("MAIN", "Backup BigFish Tables", "PRIMARY",
-            "usp_me_02_backup_bigfish_tables", "usp_validate_me_02_backup_bigfish_tables"),
-    StepDef("MAIN", "Run BigFish Load Job", "PRIMARY",
-            "usp_me_03_run_bigfish_job", "usp_validate_me_03_run_bigfish_job",
-            "zz-Load Big Fish Dashboard Data 2016"),
-    StepDef("MAIN", "Populate BigFish Tables", "PRIMARY",
-            "usp_me_04_populate_bigfish_tables", "usp_validate_me_04_populate_bigfish_tables"),
-    StepDef("MAIN", "Validate BigFish Dashboard", "PRIMARY",
-            "usp_me_05_validate_bigfish_dashboard",
-            "usp_validate_me_05_validate_bigfish_dashboard"),
-    StepDef("MAIN", "Populate Quadrant Tables", "PRIMARY",
-            "usp_me_06_populate_quadrant_tables", "usp_validate_me_06_populate_quadrant_tables"),
-    StepDef("MAIN", "Run Azure Job", "REMOTE_SQL",
-            "usp_me_07_run_azure_pshr_job", "usp_validate_me_07_run_azure_pshr_job",
-            "Azure_PSHRDataLoads"),
-    StepDef("MAIN", "Run CompTaskForce Job", "PRIMARY",
-            "usp_me_08_run_comptaskforce_job", "usp_validate_me_08_run_comptaskforce_job",
-            "zz_Load CompTaskForce Data 2016"),
-    StepDef("MAIN", "Fix Employee Role Data", "PRIMARY",
-            "usp_me_09_fix_employee_role_data", "usp_validate_me_09_fix_employee_role_data"),
-    StepDef("MAIN", "Validate Measurement Dashboard", "PRIMARY",
-            "usp_me_10_validate_measurement_dashboard",
-            "usp_validate_me_10_validate_measurement_dashboard"),
-    # ---- BI ----
-    StepDef("BI", "Insert AsOfDate", "PRIMARY",
-            "usp_me_11_insert_asofdate_rraps", "usp_validate_me_11_insert_asofdate_rraps"),
-    StepDef("BI", "Load PeopleSoft Revenue", "PRIMARY",
-            "usp_me_12_load_peoplesoft_revenue", "usp_validate_me_12_load_peoplesoft_revenue"),
-    StepDef("BI", "Load WIP Tables", "PRIMARY",
-            "usp_me_13_load_wip_tables", "usp_validate_me_13_load_wip_tables"),
-    StepDef("BI", "Check Consultant Workload", "PRIMARY",
-            "usp_me_14_check_and_load_consultant_workload",
-            "usp_validate_me_14_check_and_load_consultant_workload",
-            "RRAPS_Populate Consultant_workload table - Monthly Load"),
-    StepDef("BI", "Run OfficeFull Model", "PRIMARY",
-            "usp_me_15_run_officefull_model", "usp_validate_me_15_run_officefull_model"),
-    StepDef("BI", "Run BI Finance Job", "PRIMARY",
-            "usp_me_16_run_bi_finance_job", "usp_validate_me_16_run_bi_finance_job",
-            "BI_FINANCE_DATA"),
-    StepDef("BI", "Check Employee Role Data", "PRIMARY",
-            "usp_me_17_check_employee_role_data", "usp_validate_me_17_check_employee_role_data"),
-    StepDef("BI", "Consultant Quadrant Data Load", "PRIMARY",
-            "usp_me_18_consultant_quadrant_data_load",
-            "usp_validate_me_18_consultant_quadrant_data_load"),
-    StepDef("BI", "Area Manager Dashboard Load", "PRIMARY",
-            "usp_me_19_area_manager_dashboard_load",
-            "usp_validate_me_19_area_manager_dashboard_load"),
-    StepDef("BI", "Insert Historical Tables", "PRIMARY",
-            "usp_me_20_insert_historical_tables", "usp_validate_me_20_insert_historical_tables"),
-    # ---- DAY5 ----
-    StepDef("DAY5", "Refresh PeopleSoft Revenue", "PRIMARY",
-            "usp_me_d5_01_refresh_peoplesoft_revenue",
-            "usp_validate_me_d5_01_refresh_peoplesoft_revenue"),
-    StepDef("DAY5", "Run OfficeFull Model", "PRIMARY",
-            "usp_me_d5_02_run_officefull_model", "usp_validate_me_d5_02_run_officefull_model"),
-    # ---- POST ----
-    StepDef("POST", "Send Complete Email", "PRIMARY",
-            "orchestration.sp_send_month_end_complete_email",
-            "orchestration.sp_validate_month_end_complete_email"),
-]
-
+# STEP_REGISTRY lives in app.db.registry (frozen proc-mapping contract).
 # Mock runtime overlay — replaced by orchestration.step_runs + db_execution_log
 # later. Keyed by execute proc (unique):
 # (execution_status, validation_status, duration_seconds, last_message)
@@ -556,11 +455,6 @@ _MONITORED_JOBS: list[tuple[str, str, bool, str, str, str | None, bool, str | No
     ("Azure_PSHRDataLoads", "REMOTE_SQL", True, "Succeeded",
      "05/31 02:22 AM", "06/01 02:20 AM", False, "AzurePSHRDataLoads_TEST"),
 ]
-
-
-def job_key(job_name: str) -> str:
-    """Stable anchor slug for a monitored job name."""
-    return re.sub(r"[^a-z0-9]+", "-", job_name.lower()).strip("-")
 
 
 def get_monitored_agent_jobs() -> list[dict[str, Any]]:

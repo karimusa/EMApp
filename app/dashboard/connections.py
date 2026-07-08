@@ -1,20 +1,15 @@
-"""Connection service — resolves the active database connection.
-
-Server and database names are never hardcoded in application logic; they are
-loaded from ``orchestration.app_connections`` (mock rows today, live SQL later).
-"""
+"""Connection service — resolves the active database connection."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from app.dashboard import mock_data
+from app.dashboard import data
 
 
 class ConnectionService:
     def list_connections(self) -> list[dict[str, Any]]:
-        return mock_data.get_app_connections()
+        return data.get_app_connections()
 
     def get_active(self) -> dict[str, Any]:
-        """Return the active PRIMARY connection used as the console data source."""
-        return mock_data.get_active_connection()
+        return data.get_active_connection()

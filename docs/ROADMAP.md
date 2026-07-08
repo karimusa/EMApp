@@ -13,13 +13,19 @@
 - Admin vs ReadOnly permissions (execution controls hidden for ReadOnly)
 - Mock data shaped like all 8 schema tables in `docs/planning/sql/schema.sql`
 
-## Next — Live SQL Server integration
+## Next — Live SQL Server (in progress)
 
-1. **Connection loading** — bootstrap env vars → `orchestration.app_connections`
-2. **Repository layer** — swap `mock_data` for pyodbc/SQLAlchemy reads
-3. **Step execution** — Admin Run/Validate via stored procedures
-4. **Live refresh** — agent jobs, logs, monitoring telemetry
-5. **User mutations** — CRUD on `dbo.users`
-6. **Reports** — Phase 2 executive exports
+Repositories in `app/db/repositories/` read MonthEndOrchestrationDB when `DATA_SOURCE=sql`
+(or `DATA_SOURCE=auto` with bootstrap env vars set). Mock data remains the offline/test fallback.
+
+1. Set bootstrap env vars in `.env` (see `.env.example`)
+2. Deploy schema from `docs/planning/sql/schema.sql`
+3. Seed `dbo.users`, `orchestration.app_connections`, `orchestration.job_steps`
+4. Wire step execution via stored procedures (Run/Validate buttons)
+
+## Later
+
+- User mutations (CRUD on `dbo.users`)
+- Reports — Phase 2 executive exports
 
 Design references: `docs/planning/sql/`
