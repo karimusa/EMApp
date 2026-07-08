@@ -1,0 +1,210 @@
+/* EMApp / RRA — shared enterprise component system
+   Dark blue theme · glass depth · polished interactive states */
+
+:root {
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25);
+    --shadow-md: 0 12px 32px -12px rgba(0, 0, 0, 0.55);
+    --shadow-lg: 0 28px 56px -24px rgba(0, 0, 0, 0.7);
+    --shadow-glow-blue: 0 0 40px -8px rgba(37, 99, 235, 0.55);
+    --glass-bg: rgba(17, 31, 61, 0.72);
+    --glass-border: rgba(120, 160, 220, 0.22);
+    --glass-highlight: rgba(255, 255, 255, 0.06);
+}
+
+/* ---- Buttons (all variants share state machine) ---- */
+.btn,
+.btn-primary,
+.btn-ghost,
+.btn-run,
+.btn-validate,
+.login-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    font-family: inherit;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+    border-radius: 11px;
+    cursor: pointer;
+    user-select: none;
+    transition:
+        transform 0.18s var(--ease-out),
+        box-shadow 0.22s var(--ease-out),
+        background 0.18s ease,
+        border-color 0.18s ease,
+        color 0.18s ease,
+        opacity 0.18s ease;
+}
+
+.btn:active:not(:disabled):not(.is-loading),
+.btn-primary:active:not(:disabled):not(.is-loading),
+.btn-run:active:not(:disabled):not(.is-loading) {
+    transform: translateY(1px) scale(0.98);
+}
+
+.btn:disabled,
+.btn-primary:disabled,
+.btn-ghost:disabled,
+.btn-run:disabled,
+.btn-validate:disabled,
+.login-btn:disabled,
+.btn.is-disabled {
+    opacity: 0.48;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+.btn.is-loading,
+.btn-primary.is-loading,
+.btn-ghost.is-loading,
+.btn-run.is-loading,
+.btn-validate.is-loading,
+.login-btn.is-loading {
+    pointer-events: none;
+    opacity: 0.88;
+}
+
+.btn.is-success,
+.btn-primary.is-success,
+.btn-run.is-success {
+    background: linear-gradient(135deg, #16a34a, #15803d) !important;
+    border-color: transparent !important;
+    box-shadow: 0 12px 28px -10px rgba(22, 163, 74, 0.65) !important;
+}
+
+.btn-spinner {
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid rgba(255, 255, 255, 0.25);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: btnSpin 0.65s linear infinite;
+}
+
+@keyframes btnSpin {
+    to { transform: rotate(360deg); }
+}
+
+.btn-icon-sm {
+    position: relative;
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    border: 1px solid var(--border-strong, rgba(120, 160, 220, 0.28));
+    background: linear-gradient(160deg, var(--panel, #111f3d), var(--bg-2, #0d1830));
+    color: var(--muted, #93a5c6);
+    cursor: pointer;
+    font-size: 0.88rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-sm), inset 0 1px 0 var(--glass-highlight);
+    transition: all 0.18s var(--ease-out);
+}
+
+.btn-icon-sm:hover:not(:disabled) {
+    color: #fff;
+    border-color: var(--blue-bright, #3b82f6);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md), 0 0 0 1px rgba(59, 130, 246, 0.2);
+}
+
+.btn-icon-sm:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.btn-icon-sm--danger:hover:not(:disabled) {
+    color: var(--err, #f43f5e);
+    border-color: rgba(244, 63, 94, 0.5);
+    box-shadow: 0 8px 20px -8px rgba(244, 63, 94, 0.45);
+}
+
+/* ---- Glass panels ---- */
+.glass-panel {
+    background: linear-gradient(155deg, rgba(20, 38, 74, 0.92) 0%, rgba(10, 18, 37, 0.88) 100%);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    box-shadow:
+        var(--shadow-lg),
+        inset 0 1px 0 var(--glass-highlight),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(16px);
+}
+
+.glass-panel--elevated {
+    transform: translateZ(0);
+    box-shadow:
+        var(--shadow-lg),
+        var(--shadow-glow-blue),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* ---- Status chips ---- */
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 0.28rem 0.65rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    letter-spacing: 0.02em;
+}
+
+.chip--ok { color: var(--ok, #22c55e); background: var(--ok-bg, rgba(34, 197, 94, 0.14)); border-color: rgba(34, 197, 94, 0.35); }
+.chip--run { color: var(--run, #38bdf8); background: var(--run-bg, rgba(56, 189, 248, 0.14)); border-color: rgba(56, 189, 248, 0.35); }
+.chip--err { color: var(--err, #f43f5e); background: var(--err-bg, rgba(244, 63, 94, 0.14)); border-color: rgba(244, 63, 94, 0.35); }
+.chip--wait { color: var(--wait, #f59e0b); background: var(--wait-bg, rgba(245, 158, 11, 0.14)); border-color: rgba(245, 158, 11, 0.35); }
+.chip--info { color: var(--muted, #93a5c6); background: rgba(148, 165, 198, 0.12); border-color: rgba(148, 165, 198, 0.25); }
+
+/* ---- Toast variants ---- */
+.toast--success { border-left-color: var(--ok, #22c55e); }
+.toast--success .bi { color: var(--ok, #22c55e); }
+.toast--error { border-left-color: var(--err, #f43f5e); }
+.toast--error .bi { color: var(--err, #f43f5e); }
+
+/* ---- Page empty states ---- */
+.page-empty {
+    text-align: center;
+    padding: 3.5rem 2rem;
+    color: var(--muted, #93a5c6);
+}
+
+.page-empty .empty-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 1rem;
+    border-radius: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    color: var(--accent, #60a5fa);
+    background: rgba(59, 130, 246, 0.12);
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    box-shadow: var(--shadow-md);
+}
+
+.page-empty h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1.05rem;
+    color: #fff;
+}
+
+.page-empty p {
+    margin: 0;
+    font-size: 0.88rem;
+    max-width: 420px;
+    margin-inline: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .btn-spinner { animation: none !important; }
+}

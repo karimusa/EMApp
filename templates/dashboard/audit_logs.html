@@ -1,0 +1,39 @@
+{% extends "console_base.html" %}
+{% from "dashboard/_macros.html" import log_status %}
+{% set active_nav = 'audit' %}
+{% block title %}Audit Logs — RRA Month-End Orchestration{% endblock %}
+{% block topbar_title %}Audit Logs{% endblock %}
+
+{% block page %}
+    <div class="content-head">
+        <div class="content-title">
+            <h2>Audit Logs</h2>
+            <span class="run-pill run-pill--pending"><i class="bi bi-shield-check"></i> Admin only</span>
+        </div>
+        <button class="btn-ghost" type="button" id="exportAuditBtn"><i class="bi bi-download"></i> Export</button>
+    </div>
+
+    <section class="log-panel">
+        <div class="log-table-wrap">
+            <table class="log-table">
+                <thead><tr><th>Timestamp</th><th>User</th><th>Action</th><th>Detail</th><th>Source IP</th><th>Status</th></tr></thead>
+                <tbody>
+                    {% for row in audit_log %}
+                    <tr>
+                        <td class="mono">{{ row.logged_at }}</td>
+                        <td><span class="user-cell"><span class="avatar avatar--sm">{{ (row.user or '?')[0]|upper }}</span><strong>{{ row.user }}</strong></span></td>
+                        <td>{{ row.action }}</td>
+                        <td class="log-msg">{{ row.detail }}</td>
+                        <td class="mono muted">{{ row.ip }}</td>
+                        <td>{{ log_status(row.status) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+{% endblock %}
+
+{% block scripts %}
+<script>window.rraUI?.withAction(document.getElementById("exportAuditBtn"), function () {}, { message: "Audit log export queued.", successFlash: true, delay: 800 });</script>
+{% endblock %}

@@ -1,0 +1,116 @@
+{# Reusable dashboard UI macros #}
+
+{% macro status_pill(status) %}
+    {% set cls = {'In Progress': 'running', 'Completed': 'success', 'Failed': 'failed'}.get(status, 'pending') %}
+    <span class="run-pill run-pill--{{ cls }}">
+        {% if status == 'In Progress' %}<i class="bi bi-arrow-repeat spin"></i>
+        {% elif status == 'Completed' %}<i class="bi bi-check-circle-fill"></i>
+        {% elif status == 'Failed' %}<i class="bi bi-x-circle-fill"></i>
+        {% else %}<i class="bi bi-clock"></i>{% endif %}
+        {{ status }}
+    </span>
+{% endmacro %}
+
+{% macro run_status_badge(status) %}
+    {% set cls = {'In Progress': 'run', 'Completed': 'ok', 'Failed': 'err'}.get(status, 'info') %}
+    <span class="log-badge log-badge--{{ cls }}">{{ status }}</span>
+{% endmacro %}
+
+{% macro stat_card(label, value, icon, tone, sub) %}
+    <div class="stat-card">
+        <div class="stat-top">
+            <span class="stat-label">{{ label }}</span>
+            <span class="stat-icon stat-icon--{{ tone }}"><i class="bi {{ icon }}"></i></span>
+        </div>
+        <div class="stat-value">{{ value }}</div>
+        <div class="stat-sub">{{ sub }}</div>
+    </div>
+{% endmacro %}
+
+{% macro exec_badge(status) %}
+    {% set map = {'Success': ['ok', 'bi-check-circle-fill'], 'Running': ['run', 'bi-arrow-repeat spin'],
+                  'Failed': ['err', 'bi-x-circle-fill'], 'Pending': ['wait', 'bi-clock'],
+                  'Skipped': ['wait', 'bi-slash-circle']} %}
+    {% set info = map.get(status, ['wait', 'bi-clock']) %}
+    <span class="badge-exec badge-exec--{{ info[0] }}"><i class="bi {{ info[1] }}"></i> {{ status }}</span>
+{% endmacro %}
+
+{% macro val_badge(status) %}
+    {% set map = {'Passed': ['ok', 'bi-patch-check-fill', 'Validated'], 'Failed': ['err', 'bi-patch-exclamation-fill', 'Validation failed'],
+                  'Pending': ['wait', 'bi-dash-circle', 'Not validated'], 'NotRequired': ['muted', 'bi-dash-circle', 'No validation']} %}
+    {% set info = map.get(status, ['wait', 'bi-dash-circle', 'Not validated']) %}
+    <span class="badge-val badge-val--{{ info[0] }}" title="{{ info[2] }}"><i class="bi {{ info[1] }}"></i> {{ info[2] }}</span>
+{% endmacro %}
+
+{% macro log_status(status) %}
+    {% set map = {'Success': 'ok', 'Failed': 'err', 'Running': 'run', 'Info': 'info'} %}
+    <span class="log-badge log-badge--{{ map.get(status, 'info') }}">{{ status }}</span>
+{% endmacro %}
+
+{% macro step_card(step, is_admin) %}
+    <article class="step-card step-card--{{ step.execution_status|lower }}"
+             tabindex="0" role="button" aria-label="View details for {{ step.step_name }}"
+             data-step-id="{{ step.step_id }}"
+             data-step-name="{{ step.step_name }}"
+             data-name="{{ step.step_name|lower }}"
+             data-order="{{ '%02d'|format(step.step_order) }}"
+             data-phase="{{ step.phase_code }}"
+             data-server="{{ step.server_name }}"
+             data-exec="{{ step.execution_status|lower }}"
+             data-val="{{ step.validation_status|lower }}"
+             data-message="{{ step.last_message }}"
+             data-exec-proc="{{ step.execute_proc_name }}"
+             data-val-proc="{{ step.validate_proc_name }}"
+             data-last-run="{{ step.last_run_time }}"
+             data-duration="{{ step.duration }}"
+             data-agent-job="{{ step.agent_job_name or '' }}"
+             data-agent-job-key="{{ step.agent_job_key or '' }}"
+             data-valstatus="{{ step.validation.ValidationStatus or '' }}"
+             data-val-log="{{ step.validation.LatestLogStatus or '' }}"
+             data-val-expected="{{ step.validation.ExpectedItem or '' }}"
+             data-val-matched="{{ step.validation.MatchedItem or '' }}"
+             data-val-result="{{ step.validation.ResultMessage or '' }}"
+             data-val-time="{{ step.validation.ValidationTime or '' }}">
+        <div class="step-card-head">
+            <span class="step-order">{{ '%02d'|format(step.step_order) }}</span>
+            <div class="step-title">
+                <h4>{{ step.step_name }}</h4>
+                <span class="step-sub">
+                    <span class="step-phase-tag">{{ step.phase_code }}</span>
+                    <span class="step-server"><i class="bi bi-hdd-network"></i> {{ step.server_name }}</span>
+                </span>
+            </div>
+            <button class="step-details-btn" type="button" aria-label="Details" title="Details"><i class="bi bi-info-circle"></i></button>
+        </div>
+
+        <div class="step-badges">
+            {{ exec_badge(step.execution_status) }}
+            {{ val_badge(step.validation_status) }}
+            {% if step.agent_job_name %}
+            <span class="badge-job" title="Launches SQL Agent job: {{ step.agent_job_name }}"><i class="bi bi-hdd-network"></i> Agent job</span>
+            {% endif %}
+        </div>
+
+        <p class="step-message">{{ step.last_message }}</p>
+
+        <div class="step-meta">
+            <span><i class="bi bi-clock-history"></i> {{ step.last_run_time }}</span>
+            <span><i class="bi bi-stopwatch"></i> {{ step.duration }}</span>
+        </div>
+
+        {% if is_admin %}
+        <div class="step-actions">
+            <button class="btn-run" type="button" data-step-id="{{ step.step_id }}" data-step-name="{{ step.step_name }}">
+                <i class="bi bi-play-fill"></i> Run
+            </button>
+            <button class="btn-validate" type="button" data-step-id="{{ step.step_id }}" data-step-name="{{ step.step_name }}">
+                <i class="bi bi-patch-check"></i> Validate
+            </button>
+        </div>
+        {% else %}
+        <div class="step-actions step-actions--readonly">
+            <span class="readonly-note"><i class="bi bi-eye"></i> Read-only view</span>
+        </div>
+        {% endif %}
+    </article>
+{% endmacro %}

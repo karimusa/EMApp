@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In — RRA Month-End Orchestration</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+</head>
+<body class="login-body">
+    <div class="split-layout">
+
+        <!-- Left: login panel -->
+        <section class="login-panel">
+            <div class="login-card" role="main">
+                <div class="brand">
+                    <div class="brand-mark">RRA</div>
+                    <div class="brand-tagline">Reliable. Relevant. Actionable.</div>
+                </div>
+
+                <h1 class="login-title">RRA Month-End Orchestration</h1>
+                <p class="login-subtitle">Enterprise Operations Console</p>
+
+                <div class="divider">
+                    <span class="divider-icon"><i class="bi bi-shield-lock-fill"></i></span>
+                </div>
+                <p class="signin-prompt">Sign in to continue</p>
+
+                <div id="loginAlert" class="{% if not error %}d-none{% endif %}">
+                    <div class="alert login-alert" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <span id="loginAlertText">{{ error or '' }}</span>
+                    </div>
+                </div>
+
+                <form id="loginForm" method="POST" action="{{ url_for('auth.login') }}" novalidate>
+                    <div class="field-group">
+                        <label for="username" class="field-label">Username</label>
+                        <div class="field-control">
+                            <i class="bi bi-person field-icon" aria-hidden="true"></i>
+                            <input type="text" class="form-control" id="username" name="username"
+                                   placeholder="Enter your username" required autofocus autocomplete="username">
+                        </div>
+                        <div class="invalid-feedback">Username is required.</div>
+                    </div>
+
+                    <div class="field-group">
+                        <label for="password" class="field-label">Password</label>
+                        <div class="field-control">
+                            <i class="bi bi-lock field-icon" aria-hidden="true"></i>
+                            <input type="password" class="form-control" id="password" name="password"
+                                   placeholder="Enter your password" required autocomplete="current-password">
+                            <button type="button" class="password-toggle" id="passwordToggle"
+                                    aria-label="Show password" tabindex="-1">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                        <div class="invalid-feedback">Password is required.</div>
+                    </div>
+
+                    <div class="form-row">
+                        <label class="remember">
+                            <input type="checkbox" name="remember" id="remember" checked>
+                            <span>Remember me</span>
+                        </label>
+                        <a href="#" class="forgot-link">Forgot password?</a>
+                    </div>
+
+                    <button type="submit" class="login-btn" id="loginBtn">
+                        <span class="btn-text btn-label"><i class="bi bi-lock-fill"></i> Sign In</span>
+                        <span class="btn-loading btn-spinner-wrap d-none" aria-hidden="true">
+                            <span class="btn-spinner"></span>
+                            Signing in…
+                        </span>
+                    </button>
+                </form>
+
+                <div class="login-footnote">
+                    <i class="bi bi-shield-check"></i>
+                    <span>Secure session-based authentication</span>
+                </div>
+            </div>
+
+            <div class="login-version">
+                <div>RRA Month-End Orchestration &middot; v1.0.0</div>
+                <div>Enterprise Operations Console</div>
+            </div>
+        </section>
+
+        <!-- Right: showcase -->
+        <aside class="showcase-panel">
+            <div class="showcase-orb showcase-orb--1" aria-hidden="true"></div>
+            <div class="showcase-orb showcase-orb--2" aria-hidden="true"></div>
+            <div class="showcase-orb showcase-orb--3" aria-hidden="true"></div>
+            <div class="showcase-particles" aria-hidden="true">
+                <span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span>
+            </div>
+
+            <div class="security-pill" aria-hidden="true">
+                <i class="bi bi-shield-lock-fill"></i>
+                <span>Enterprise Grade Security</span>
+                <span class="status-dot"></span>
+            </div>
+
+            <div class="showcase-content">
+                <div class="showcase-heading">
+                    <h2>Enterprise Data Operations Platform</h2>
+                    <p>Orchestrate, monitor, and validate your month-end close across SQL Server,
+                       cloud connections, and ETL pipelines — all from one secure console.</p>
+                </div>
+
+                <div class="showcase-art" aria-hidden="true">
+                    <div class="platform-glow"></div>
+                    <div class="platform-stack">
+                        <div class="platform-layer platform-layer--1">SQL Server · ETL</div>
+                        <div class="platform-layer platform-layer--2">Orchestration</div>
+                        <div class="platform-layer platform-layer--3">Dashboard</div>
+                    </div>
+                </div>
+
+                <ul class="feature-cards" aria-hidden="true">
+                    <li>
+                        <span class="feature-icon"><i class="bi bi-shield-check"></i></span>
+                        <div>
+                            <strong>Secure</strong>
+                            <p>Role-based access and enterprise security</p>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="feature-icon"><i class="bi bi-lightning-charge-fill"></i></span>
+                        <div>
+                            <strong>Automated</strong>
+                            <p>End-to-end month-end orchestration and validation</p>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="feature-icon"><i class="bi bi-graph-up-arrow"></i></span>
+                        <div>
+                            <strong>Monitored</strong>
+                            <p>Real-time monitoring and comprehensive logging</p>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="feature-icon"><i class="bi bi-cloud-check-fill"></i></span>
+                        <div>
+                            <strong>Scalable</strong>
+                            <p>Built for performance, reliability, and growth</p>
+                        </div>
+                    </li>
+                </ul>
+
+                <p class="showcase-footer">&copy; 2025 RRA Technologies. All rights reserved.</p>
+            </div>
+        </aside>
+
+    </div>
+
+    <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/login.js') }}"></script>
+</body>
+</html>

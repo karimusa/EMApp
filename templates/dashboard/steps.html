@@ -1,0 +1,65 @@
+{% extends "console_base.html" %}
+{% from "dashboard/_macros.html" import exec_badge, val_badge %}
+{% set active_nav = 'steps' %}
+{% block title %}Steps — RRA Month-End Orchestration{% endblock %}
+{% block topbar_title %}Step Registry{% endblock %}
+
+{% block page %}
+    <div class="content-head">
+        <div class="content-title">
+            <h2>All Steps</h2>
+            <span class="run-pill run-pill--pending"><i class="bi bi-list-check"></i> {{ steps|length }} steps</span>
+        </div>
+        <div class="step-controls">
+            <div class="search-box"><i class="bi bi-search"></i><input type="search" id="allStepsSearch" placeholder="Search steps…" aria-label="Search steps"></div>
+        </div>
+    </div>
+
+    <section class="log-panel">
+        <div class="log-table-wrap">
+            <table class="log-table steps-table">
+                <thead>
+                    <tr><th>#</th><th>Step</th><th>Phase</th><th>Server</th><th>Execution</th><th>Validation</th><th>Last Run</th><th class="ta-right">Actions</th></tr>
+                </thead>
+                <tbody>
+                    {% for step in steps %}
+                    <tr data-step-name="{{ step.step_name|lower }}">
+                        <td class="mono">{{ '%02d'|format(step.step_order) }}</td>
+                        <td><strong>{{ step.step_name }}</strong></td>
+                        <td><span class="phase-chip">{{ step.phase_code }}</span></td>
+                        <td class="mono muted">{{ step.server_name }}</td>
+                        <td>{{ exec_badge(step.execution_status) }}</td>
+                        <td>{{ val_badge(step.validation_status) }}</td>
+                        <td class="mono">{{ step.last_run_time }}</td>
+                        <td class="ta-right">
+                            {% if nav_is_admin %}
+                            <button class="btn-icon-sm" type="button" title="Run" data-step-action="run" data-name="{{ step.step_name }}"><i class="bi bi-play-fill"></i></button>
+                            <button class="btn-icon-sm" type="button" title="Validate" data-step-action="validate" data-name="{{ step.step_name }}"><i class="bi bi-patch-check"></i></button>
+                            {% endif %}
+                            <button class="btn-icon-sm" type="button" title="View Details" data-step-action="details" data-name="{{ step.step_name }}"><i class="bi bi-eye"></i></button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById("allStepsSearch")?.addEventListener("input", function () {
+        const q = this.value.trim().toLowerCase();
+        document.querySelectorAll(".steps-table tbody tr").forEach(function (row) {
+            row.classList.toggle("d-none", q && !row.dataset.stepName.includes(q));
+        });
+    });
+    document.querySelectorAll("[data-step-action]").forEach(function (btn) {
+        window.rraUI?.withAction(btn, function () {
+            const action = btn.dataset.stepAction;
+            const name = btn.dataset.name;
+            return action.charAt(0).toUpperCase() + action.slice(1) + ' for "' + name + '" queued.';
+        }, { successFlash: true, delay: 650 });
+    });
+</script>
+{% endblock %}

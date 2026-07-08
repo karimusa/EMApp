@@ -1,0 +1,88 @@
+{% extends "console_base.html" %}
+{% set active_nav = 'jobs' %}
+{% block title %}SQL Agent Jobs — RRA Month-End Orchestration{% endblock %}
+{% block topbar_title %}SQL Agent Jobs{% endblock %}
+
+{% block page %}
+
+    <div class="content-head">
+        <div class="content-title">
+            <h2>SQL Agent Jobs</h2>
+            <span class="run-pill run-pill--running"><i class="bi bi-hdd-network"></i> Monitored</span>
+        </div>
+        <button class="btn-ghost" type="button" id="refreshJobsBtn"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+    </div>
+
+    <section class="stat-grid stat-grid--4">
+        <div class="stat-card"><div class="stat-top"><span class="stat-label">Monitored Jobs</span><span class="stat-icon stat-icon--blue"><i class="bi bi-hdd-stack"></i></span></div><div class="stat-value">{{ totals.total }}</div><div class="stat-sub">Across {{ groups|length }} server(s)</div></div>
+        <div class="stat-card"><div class="stat-top"><span class="stat-label">Running</span><span class="stat-icon stat-icon--cyan"><i class="bi bi-arrow-repeat"></i></span></div><div class="stat-value">{{ totals.running }}</div><div class="stat-sub">Currently executing</div></div>
+        <div class="stat-card"><div class="stat-top"><span class="stat-label">Failed</span><span class="stat-icon stat-icon--red"><i class="bi bi-x-circle-fill"></i></span></div><div class="stat-value">{{ totals.failed }}</div><div class="stat-sub">Last run failed</div></div>
+        <div class="stat-card"><div class="stat-top"><span class="stat-label">Disabled</span><span class="stat-icon stat-icon--amber"><i class="bi bi-pause-circle"></i></span></div><div class="stat-value">{{ totals.disabled }}</div><div class="stat-sub">Not scheduled</div></div>
+    </section>
+
+    {% for group in groups %}
+    <section class="server-group">
+        <div class="server-group-head">
+            <i class="bi bi-hdd-network-fill"></i>
+            <h3>{{ group.server_name }}</h3>
+            <span class="server-conn">{{ group.connection_name }} · {{ group.database_name }}</span>
+            <span class="server-count">{{ group.jobs|length }} job(s)</span>
+        </div>
+        <div class="jobs-grid">
+            {% for j in group.jobs %}
+            <article class="job-card {% if j.is_running %}job-card--running{% endif %}" id="job-{{ j.job_key }}">
+                <div class="job-card-head">
+                    <div class="job-title">
+                        <h4>{{ j.job_name }}</h4>
+                        {% if j.alt_name %}<span class="job-alt">test: {{ j.alt_name }}</span>{% endif %}
+                    </div>
+                    {% if j.is_running %}
+                    <span class="job-live job-live--on"><span class="status-dot"></span> Running</span>
+                    {% else %}
+                    <span class="job-live job-live--off"><i class="bi bi-pause-fill"></i> Idle</span>
+                    {% endif %}
+                </div>
+                <div class="job-badges">
+                    {% if j.is_enabled %}
+                    <span class="log-badge log-badge--ok">Enabled</span>
+                    {% else %}
+                    <span class="log-badge log-badge--info">Disabled</span>
+                    {% endif %}
+                    {% set map = {'Succeeded': 'ok', 'Failed': 'err', 'Running': 'run', 'Retry': 'info', 'Canceled': 'info'} %}
+                    <span class="log-badge log-badge--{{ map.get(j.last_run_status, 'info') }}">{{ j.last_run_status }}</span>
+                </div>
+                <dl class="job-facts">
+                    <div><dt>Last run</dt><dd class="mono">{{ j.last_run_time or '—' }}</dd></div>
+                    <div><dt>Next run</dt><dd class="mono">{{ j.next_run_time or '—' }}</dd></div>
+                    <div><dt>Trigger step</dt><dd>{{ j.trigger_step or '—' }}</dd></div>
+                    <div><dt>Execute proc</dt><dd class="mono">{{ j.trigger_proc or '—' }}</dd></div>
+                </dl>
+            </article>
+            {% endfor %}
+        </div>
+    </section>
+    {% endfor %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    window.rraUI?.withAction(document.getElementById("refreshJobsBtn"), function () {
+        return "SQL Agent job status refreshed.";
+    }, { successFlash: true, delay: 900 });
+    (function () {
+        function highlight() {
+            document.querySelectorAll(".job-card.highlight").forEach((c) => c.classList.remove("highlight"));
+            if (location.hash.startsWith("#job-")) {
+                const el = document.querySelector(location.hash);
+                if (el) {
+                    el.classList.add("highlight");
+                    el.scrollIntoView({ behavior: "smooth", block: "center" });
+                }
+            }
+        }
+        highlight();
+        window.addEventListener("hashchange", highlight);
+    })();
+</script>
+{% endblock %}

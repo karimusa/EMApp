@@ -1,0 +1,50 @@
+{% extends "console_base.html" %}
+{% set active_nav = 'alerts' %}
+{% block title %}Alerts — RRA Month-End Orchestration{% endblock %}
+{% block topbar_title %}Alerts{% endblock %}
+
+{% block page %}
+    <div class="content-head">
+        <div class="content-title">
+            <h2>Active Alerts</h2>
+            <span class="nav-badge" style="position:static;margin:0;padding:0.2rem 0.55rem;">2 open</span>
+        </div>
+        <button class="btn-ghost" type="button" id="ackAllBtn"><i class="bi bi-check2-all"></i> Acknowledge All</button>
+    </div>
+
+    <div class="alerts-list">
+        {% for alert in alerts %}
+        <article class="alert-card alert-card--{{ alert.severity|lower }}">
+            <div class="alert-card-icon">
+                {% if alert.severity == 'Critical' %}<i class="bi bi-exclamation-octagon-fill"></i>
+                {% elif alert.severity == 'Warning' %}<i class="bi bi-exclamation-triangle-fill"></i>
+                {% else %}<i class="bi bi-info-circle-fill"></i>{% endif %}
+            </div>
+            <div class="alert-card-body">
+                <div class="alert-card-head">
+                    <span class="chip chip--{% if alert.severity == 'Critical' %}err{% elif alert.severity == 'Warning' %}wait{% else %}info{% endif %}">{{ alert.severity }}</span>
+                    <span class="chip chip--{% if alert.status == 'Open' %}run{% elif alert.status == 'Resolved' %}ok{% else %}info{% endif %}">{{ alert.status }}</span>
+                    <time class="mono muted">{{ alert.time }}</time>
+                </div>
+                <h4>{{ alert.title }}</h4>
+                <p>{{ alert.message }}</p>
+            </div>
+            <div class="alert-card-actions">
+                {% if alert.status == 'Open' %}
+                <button class="btn-ghost btn-ghost--sm" type="button" data-alert-action="ack">Acknowledge</button>
+                {% endif %}
+                <button class="btn-ghost btn-ghost--sm" type="button" data-alert-action="details">View Details</button>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    window.rraUI?.withAction(document.getElementById("ackAllBtn"), function () {}, { message: "All open alerts acknowledged.", successFlash: true });
+    document.querySelectorAll("[data-alert-action]").forEach(function (btn) {
+        window.rraUI?.withAction(btn, function () { return btn.dataset.alertAction === "ack" ? "Alert acknowledged." : "Alert detail panel opens in a later step."; }, { successFlash: btn.dataset.alertAction === "ack", delay: 500 });
+    });
+</script>
+{% endblock %}

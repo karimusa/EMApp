@@ -1,0 +1,34 @@
+{% extends "console_base.html" %}
+{% set active_nav = 'reports' %}
+{% block title %}Reports — RRA Month-End Orchestration{% endblock %}
+{% block topbar_title %}Reports{% endblock %}
+
+{% block page %}
+    <div class="content-head">
+        <div class="content-title"><h2>Reports</h2></div>
+        <button class="btn-ghost" type="button" id="refreshReportsBtn"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+    </div>
+
+    <div class="reports-grid">
+        {% for report in reports %}
+        <article class="report-card glass-panel">
+            <div class="report-icon"><i class="bi bi-file-earmark-bar-graph"></i></div>
+            <div class="report-body">
+                <h4>{{ report.name }}</h4>
+                <p class="report-meta"><span class="chip chip--info">{{ report.type }}</span> <span class="mono muted">Updated {{ report.updated }}</span></p>
+                <span class="log-badge log-badge--{% if report.status == 'Ready' %}ok{% else %}wait{% endif %}">{{ report.status }}</span>
+            </div>
+            <button class="btn-primary btn-primary--sm" type="button" data-download-report="{{ report.name }}"><i class="bi bi-download"></i> Download</button>
+        </article>
+        {% endfor %}
+    </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    window.rraUI?.withAction(document.getElementById("refreshReportsBtn"), function () {}, { message: "Report catalog refreshed.", successFlash: true, delay: 600 });
+    document.querySelectorAll("[data-download-report]").forEach(function (btn) {
+        window.rraUI?.withAction(btn, function () { return '"' + btn.dataset.downloadReport + '" download queued.'; }, { successFlash: true, delay: 800 });
+    });
+</script>
+{% endblock %}

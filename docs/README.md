@@ -1,14 +1,6 @@
-# EMApp Documentation
+# Documentation
 
-Project documentation lives in this directory.
+- [ROADMAP.md](ROADMAP.md) — incremental build plan (10 steps)
+- [planning/](planning/) — design references for future steps (SQL schema, bootstrap script drafts)
 
-## Contents
-
-- **Getting started**: See the root [README.md](../README.md) for setup and run instructions.
-- **API**: Health check at `GET /health` returns JSON status.
-
-## Future documentation
-
-- Architecture overview
-- Deployment guide
-- API reference
+**Current step:** 1 — Login page only.

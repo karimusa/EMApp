@@ -1,0 +1,52 @@
+{% extends "console_base.html" %}
+{% set active_nav = 'servers' %}
+{% block title %}Servers — RRA Month-End Orchestration{% endblock %}
+{% block topbar_title %}Server Connections{% endblock %}
+
+{% block page %}
+    <div class="content-head">
+        <div class="content-title">
+            <h2>Registered Servers</h2>
+            <span class="run-pill run-pill--success"><i class="bi bi-hdd-stack"></i> {{ connections|length }} connections</span>
+        </div>
+        {% if nav_is_admin %}
+        <button class="btn-primary" type="button" id="addConnectionBtn"><i class="bi bi-plus-lg"></i> Add Connection</button>
+        {% endif %}
+    </div>
+
+    <div class="servers-grid">
+        {% for c in connections %}
+        <article class="server-card {% if c.is_active %}server-card--active{% endif %}">
+            <div class="server-card-head">
+                <span class="server-card-icon"><i class="bi bi-hdd-network-fill"></i></span>
+                <div>
+                    <h4>{{ c.connection_name }}</h4>
+                    <p class="mono muted">{{ c.server_name }}</p>
+                </div>
+                {% if c.is_active %}<span class="chip chip--ok">Active</span>{% endif %}
+            </div>
+            <dl class="job-facts">
+                <div><dt>Database</dt><dd class="mono">{{ c.database_name }}</dd></div>
+                <div><dt>Auth</dt><dd>{{ c.auth_type or 'SQL' }}</dd></div>
+                <div><dt>Status</dt><dd><span class="log-badge log-badge--ok">Online</span></dd></div>
+                <div><dt>Latency</dt><dd class="mono">42ms</dd></div>
+            </dl>
+            <div class="server-card-actions">
+                <button class="btn-ghost btn-ghost--sm" type="button" data-server-action="test">Test Connection</button>
+                <button class="btn-ghost btn-ghost--sm" type="button" data-server-action="details">View Details</button>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    window.rraUI?.withAction(document.getElementById("addConnectionBtn"), function () {}, { message: "Add connection wizard opens in a later step." });
+    document.querySelectorAll("[data-server-action]").forEach(function (btn) {
+        window.rraUI?.withAction(btn, function () {
+            return btn.dataset.serverAction === "test" ? "Connection test succeeded." : "Server detail panel opens in a later step.";
+        }, { successFlash: btn.dataset.serverAction === "test", delay: 900 });
+    });
+</script>
+{% endblock %}
