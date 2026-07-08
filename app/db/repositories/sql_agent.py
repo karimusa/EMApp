@@ -28,7 +28,9 @@ class SqlAgentRepository:
             try:
                 rows = query_connection(env_name, f"EXEC {PROC_NAME}")
                 for row in rows:
-                    jobs.append(self._normalize(row, env_name, conn.server_name))
+                    jobs.append(
+                        self._normalize(row, conn.environment_name, conn.server_name)
+                    )
             except Exception:
                 logger.exception("Failed to load SQL Agent jobs for %s", env_name)
         return jobs

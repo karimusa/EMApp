@@ -12,6 +12,10 @@ from app.dashboard import data as orchestration_data
 from app.dashboard.connections import ConnectionService
 
 
+def _norm_env(name: str | None) -> str:
+    return (name or "").strip().upper()
+
+
 def _format_duration(seconds: int | None) -> str:
     if seconds is None:
         return "—"
@@ -104,18 +108,29 @@ class DashboardService:
             job["trigger_step"] = trigger.get("step_name")
             job["trigger_proc"] = trigger.get("execute_proc")
 
+        conn_by_env = {
+            _norm_env(c["environment_name"]): c
+            for c in self.connections.list_connections()
+        }
+        groups_by_env: dict[str, list[dict[str, Any]]] = {}
+        for job in jobs:
+            groups_by_env.setdefault(_norm_env(job["environment_name"]), []).append(job)
+
         groups = []
-        for conn in self.connections.list_connections():
-            server_jobs = [j for j in jobs if j["environment_name"] == conn["environment_name"]]
-            if server_jobs:
-                groups.append(
-                    {
-                        "environment_name": conn["environment_name"],
-                        "server_name": conn["server_name"],
-                        "database_name": conn["database_name"],
-                        "jobs": server_jobs,
-                    }
-                )
+        for env_key in sorted(groups_by_env):
+            server_jobs = groups_by_env[env_key]
+            conn = conn_by_env.get(env_key, {})
+            sample = server_jobs[0]
+            groups.append(
+                {
+                    "environment_name": conn.get("environment_name")
+                    or sample.get("environment_name")
+                    or env_key,
+                    "server_name": conn.get("server_name") or sample.get("server_name", ""),
+                    "database_name": conn.get("database_name") or "",
+                    "jobs": server_jobs,
+                }
+            )
 
         return {
             "groups": groups,
@@ -168,12 +183,22 @@ class DashboardService:
         }
 
     def get_validation(self) -> dict[str, Any]:
-        """Validation results across all steps."""
-        job_steps = {s["step_id"]: s for s in orchestration_data.get_job_steps()}
+        """Validation results across all steps (same step list as dashboard)."""
+        job_steps = orchestration_data.get_job_steps()
         validations = orchestration_data.get_validation_results()
+        pending = {
+            "StepName": "",
+            "LatestLogStatus": "Pending",
+            "ExpectedItem": "—",
+            "MatchedItem": "—",
+            "ValidationStatus": "PENDING",
+            "ResultMessage": "Awaiting execution.",
+            "ValidationTime": "—",
+        }
         rows = []
-        for step_id, result in sorted(validations.items()):
-            step = job_steps[step_id]
+        for step in job_steps:
+            step_id = step["step_id"]
+            result = validations.get(step_id, pending)
             rows.append(
                 {
                     "step_id": step_id,
@@ -183,6 +208,7 @@ class DashboardService:
                     "server_name": step["server_name"],
                     "execute_proc_name": step["execute_proc_name"],
                     "validate_proc_name": step["validate_proc_name"],
+                    "StepName": result.get("StepName") or step["step_name"],
                     **result,
                 }
             )

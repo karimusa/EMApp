@@ -33,6 +33,9 @@ def login():
                 session["username"] = user["username"]
                 session["role"] = user["role"]
                 session.permanent = True
+                next_url = (request.args.get("next") or "").strip()
+                if next_url.startswith("/") and not next_url.startswith("//"):
+                    return redirect(next_url)
                 return redirect(url_for("dashboard.index"))
 
     return render_template("auth/login.html", error=error)
