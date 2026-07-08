@@ -21,12 +21,33 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 _ENV_FILE_PATH: Path | None = None
-_ENV_LINE_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$")
+_ENV_LINE_RE = re.compile(
+    r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$",
+    re.IGNORECASE,
+)
 
 
 def get_env_file_path() -> Path:
     """Absolute path to the project-root .env file (e.g. G:\\EM\\.env)."""
     return BASE_DIR / ".env"
+
+
+def _detect_env_file_encoding(path: Path) -> str:
+    """Best-effort encoding detection for debug output."""
+    if not path.is_file():
+        return "missing"
+    raw = path.read_bytes()[:4]
+    if raw.startswith(b"\xff\xfe") or raw.startswith(b"\xfe\xff"):
+        return "utf-16"
+    if raw.startswith(b"\xef\xbb\xbf"):
+        return "utf-8-sig"
+    for encoding in ("utf-8-sig", "utf-16", "utf-8", "cp1252"):
+        try:
+            path.read_text(encoding=encoding)
+            return encoding
+        except (UnicodeDecodeError, UnicodeError):
+            continue
+    return "unknown"
 
 
 def _read_env_file_text(path: Path) -> str:
@@ -49,7 +70,7 @@ def _parse_dotenv_text(text: str) -> dict[str, str]:
         match = _ENV_LINE_RE.match(line)
         if not match:
             continue
-        name = match.group(1).strip()
+        name = match.group(1).strip().lstrip("\ufeff")
         value = match.group(2).strip()
         if (
             len(value) >= 2
@@ -141,23 +162,11 @@ def should_use_mock_data(config: dict) -> bool:
 
 def print_config_debug(config: dict) -> None:
     """Temporary debug output — bootstrap settings only (not runtime connections)."""
-    print("DATA_SOURCE =", config.get("DATA_SOURCE"))
-    print("BOOTSTRAP_SERVER =", config.get("BOOTSTRAP_SERVER"))
-    print("BOOTSTRAP_DATABASE =", config.get("BOOTSTRAP_DATABASE"))
-    print(".env loaded from =", config.get("ENV_FILE_PATH"))
-    print("Runtime connections = orchestration.app_connections (loaded after bootstrap)")
+    from config.bootstrap import print_bootstrap_validation
 
-    env_path = Path(config.get("ENV_FILE_PATH") or get_env_file_path())
-    if env_path.is_file() and not (config.get("BOOTSTRAP_SERVER") or "").strip():
-        parsed = _parse_dotenv_file(env_path)
-        file_server = (parsed.get("BOOTSTRAP_SERVER") or "").strip()
-        file_database = (parsed.get("BOOTSTRAP_DATABASE") or "").strip()
-        if file_server or file_database:
-            print("WARNING: bootstrap keys exist in .env file but were not loaded:")
-            print("  .env file BOOTSTRAP_SERVER =", repr(parsed.get("BOOTSTRAP_SERVER", "")))
-            print("  .env file BOOTSTRAP_DATABASE =", repr(parsed.get("BOOTSTRAP_DATABASE", "")))
-        else:
-            print("WARNING: set BOOTSTRAP_SERVER and BOOTSTRAP_DATABASE in .env")
+    print("DATA_SOURCE =", config.get("DATA_SOURCE"))
+    print_bootstrap_validation()
+    print("Runtime connections = orchestration.app_connections (loaded after bootstrap)")
 
 
 def apply_runtime_config(app) -> None:

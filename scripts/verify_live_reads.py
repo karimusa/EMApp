@@ -17,14 +17,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from config.settings import load_env_file
-
-load_env_file()
-
-from app import create_app
-from app.dashboard import data
-from app.db.connection_manager import init_connection_manager
-from config.settings import DevelopmentConfig
+from config.bootstrap import (
+    format_incomplete_bootstrap_message,
+    load_bootstrap_config,
+    print_bootstrap_validation,
+    require_bootstrap_config,
+    run_bootstrap_self_test_and_print,
+)
+from config.settings import build_runtime_config, load_env_file
 
 
 def _check(label: str, fn) -> None:
@@ -45,27 +45,57 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    load_env_file()
+
+    if args.connections_only:
+        require_bootstrap_config()
+        runtime = build_runtime_config()
+        run_bootstrap_self_test_and_print(runtime)
+        return 0
+
+    bootstrap = print_bootstrap_validation()
+    if not bootstrap.is_complete:
+        print(format_incomplete_bootstrap_message(bootstrap), file=sys.stderr)
+        print("Data source: mock", file=sys.stderr)
+        print("Running mock read checks anyway...", file=sys.stderr)
+
+        from app import create_app
+        from app.dashboard import data
+        from config.settings import DevelopmentConfig
+
+        app = create_app(DevelopmentConfig)
+        with app.app_context():
+            print(f"\nData source: {data.data_source_label()}")
+            print("\nRead-layer checks (mock):")
+            _check("dbo.users", lambda: data.get_users())
+            _check("orchestration.app_connections", lambda: data.get_app_connections())
+        return 0
+
+    runtime = build_runtime_config()
+    run_bootstrap_self_test_and_print(runtime)
+
+    from app import create_app
+    from app.dashboard import data
+    from app.db.connection_manager import init_connection_manager
+    from config.settings import DevelopmentConfig
+
     app = create_app(DevelopmentConfig)
     with app.app_context():
         source = data.data_source_label()
-        print(f"Data source: {source}")
+        print(f"\nData source: {source}")
         if source == "mock":
             print(
-                "WARNING: DATA_SOURCE is mock — set BOOTSTRAP_* in .env "
-                "to bootstrap MonthEndOrchestrationDB."
+                "ERROR: bootstrap is configured but app is still in mock mode.",
+                file=sys.stderr,
             )
-            if not args.connections_only:
-                print("Running mock read checks anyway...")
-        else:
-            cm = init_connection_manager(app)
-            cm.reload()
-            conns = cm.all_connections()
-            print(f"Loaded {len(conns)} connection(s): {', '.join(conns.keys())}")
-            for name, conn in conns.items():
-                print(f"  {name}: {conn.server_name} / {conn.database_name}")
+            return 1
 
-        if args.connections_only:
-            return 0
+        cm = init_connection_manager(app)
+        cm.reload()
+        conns = cm.all_connections()
+        print(f"Loaded {len(conns)} runtime connection(s): {', '.join(conns.keys())}")
+        for name, conn in conns.items():
+            print(f"  {name}: {conn.server_name} / {conn.database_name}")
 
         print("\nRead-layer checks:")
         _check("dbo.users", lambda: data.get_users())
@@ -89,6 +119,8 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
+    except SystemExit:
+        raise
     except Exception as exc:
         print(f"FAILED: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
