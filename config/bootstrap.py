@@ -113,8 +113,9 @@ Expected:
 BOOTSTRAP_SERVER=SDAZ001MLD21
 BOOTSTRAP_DATABASE=MonthEndOrchestrationDB
 BOOTSTRAP_USER=MonthEndApp
-BOOTSTRAP_PASSWORD=<your real SQL password>
-CONNECTION_SECRET_KEY=<your real fernet key>
+BOOTSTRAP_PASSWORD=MonthEndApp
+
+CONNECTION_SECRET_KEY is optional unless orchestration.app_connections uses password_encrypted.
 """
 
 

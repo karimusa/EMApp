@@ -81,6 +81,79 @@ function Load-DotEnv {
     return $true
 }
 
+function Initialize-EnvFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$EnvFilePath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ExampleEnvPath
+    )
+
+    if (Test-Path -Path $EnvFilePath) {
+        Write-Host '  Found existing .env (not overwritten)' -ForegroundColor Green
+        return
+    }
+
+    if (-not (Test-Path -Path $ExampleEnvPath)) {
+        Write-Host '  WARNING: .env missing and .env.example was not found.' -ForegroundColor Yellow
+        return
+    }
+
+    Copy-Item -Path $ExampleEnvPath -Destination $EnvFilePath
+    Write-Host '  Created .env from .env.example' -ForegroundColor Yellow
+    Write-Host '  Bootstrap values are pre-filled in the template.' -ForegroundColor Gray
+}
+
+function Test-BootstrapConfiguration {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$EnvFilePath
+    )
+
+    $required = [ordered]@{
+        BOOTSTRAP_SERVER   = 'Server hosting MonthEndOrchestrationDB (e.g. SDAZ001MLD21)'
+        BOOTSTRAP_DATABASE = 'Bootstrap database name (e.g. MonthEndOrchestrationDB)'
+        BOOTSTRAP_USER     = 'SQL login for bootstrap (e.g. MonthEndApp)'
+        BOOTSTRAP_PASSWORD = 'SQL password for bootstrap login'
+    }
+
+    $missing = New-Object System.Collections.Generic.List[string]
+    foreach ($entry in $required.GetEnumerator()) {
+        $value = [System.Environment]::GetEnvironmentVariable($entry.Key, 'Process')
+        if ([string]::IsNullOrWhiteSpace($value)) {
+            $missing.Add(('{0} - {1}' -f $entry.Key, $entry.Value))
+        }
+    }
+
+    if ($missing.Count -eq 0) {
+        return
+    }
+
+    Write-Host ''
+    Write-Host 'Bootstrap configuration is incomplete.' -ForegroundColor Red
+    Write-Host ''
+    Write-Host ('Edit: {0}' -f $EnvFilePath)
+    Write-Host ''
+    Write-Host 'Fill in these values:'
+    foreach ($item in $missing) {
+        Write-Host ('  {0}' -f $item)
+    }
+    Write-Host ''
+    Write-Host 'Expected bootstrap template (.env.example):'
+    Write-Host '  BOOTSTRAP_SERVER=SDAZ001MLD21'
+    Write-Host '  BOOTSTRAP_DATABASE=MonthEndOrchestrationDB'
+    Write-Host '  BOOTSTRAP_USER=MonthEndApp'
+    Write-Host '  BOOTSTRAP_PASSWORD=MonthEndApp'
+    Write-Host ''
+    Write-Host 'If .env is missing or still blank, copy the template after git pull:'
+    Write-Host '  copy .env.example .env'
+    Write-Host ''
+    Write-Host 'Runtime SQL connections come from orchestration.app_connections only.'
+    Write-Host '.env stores the bootstrap connection only.'
+    throw 'Bootstrap configuration is incomplete.'
+}
+
 function Get-PythonLauncher {
     $candidates = @(
         @{ FilePath = 'py';      Args = @('-3'); VersionArgs = @('-3', '--version'); DisplayName = 'py -3' },
@@ -201,10 +274,7 @@ try {
 
 Write-Host ''
 Write-Host '[5/6] Environment configuration...' -ForegroundColor Yellow
-if ((-not (Test-Path -Path $envFile)) -and (Test-Path -Path $exampleEnv)) {
-    Copy-Item -Path $exampleEnv -Destination $envFile -Force
-    Write-Host '  Created .env from .env.example - edit bootstrap credentials.' -ForegroundColor Yellow
-}
+Initialize-EnvFile -EnvFilePath $envFile -ExampleEnvPath $exampleEnv
 
 if (Test-Path -Path $envFile) {
     Load-DotEnv -Path $envFile | Out-Null
@@ -219,6 +289,7 @@ if (-not $env:FLASK_ENV) {
 }
 
 if ($TestConnection) {
+    Test-BootstrapConfiguration -EnvFilePath $envFile
     Write-Host ''
     Write-Host '[6/6] Testing database connection...' -ForegroundColor Yellow
     if (-not (Test-Path -Path $verifyScript)) {
@@ -237,6 +308,8 @@ if ($PrepareOnly) {
     Write-Host '  PrepareOnly - exiting without starting the app.' -ForegroundColor Gray
     exit 0
 }
+
+Test-BootstrapConfiguration -EnvFilePath $envFile
 
 Write-Host ''
 Write-Host 'Starting EMApp... Press Ctrl+C to stop.'

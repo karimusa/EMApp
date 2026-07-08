@@ -5,25 +5,29 @@ Enterprise month-end orchestration console. UI is frozen; data loads through
 
 ## First run (Windows — e.g. `G:\EM` on `SDAZ001MLD21`)
 
-1. **Copy the configuration template**
+1. **Pull and copy the configuration template** (if `.env` is missing or cannot be edited)
 
    ```powershell
    cd G:\EM
+   git pull origin main
    copy .env.example .env
    ```
 
-2. **Edit `.env`** and fill in:
+   `setup.ps1` also creates `.env` from `.env.example` automatically when `.env`
+   is missing. An existing `.env` is never overwritten.
 
-   | Variable | Example |
-   |----------|---------|
+2. **Bootstrap values in `.env.example`** (production template):
+
+   | Variable | Value |
+   |----------|-------|
    | `BOOTSTRAP_SERVER` | `SDAZ001MLD21` |
    | `BOOTSTRAP_DATABASE` | `MonthEndOrchestrationDB` |
    | `BOOTSTRAP_USER` | `MonthEndApp` |
-   | `BOOTSTRAP_PASSWORD` | your real SQL password |
-   | `CONNECTION_SECRET_KEY` | your real Fernet key |
+   | `BOOTSTRAP_PASSWORD` | `MonthEndApp` |
 
-   `.env` contains **only the bootstrap connection** — the server that hosts
-   `MonthEndOrchestrationDB`. All runtime SQL connections are loaded from
+   `CONNECTION_SECRET_KEY` — leave blank unless using `password_encrypted` in the database.
+
+   `.env` contains **only the bootstrap connection**. Runtime SQL connections load from
    `orchestration.app_connections` after bootstrap succeeds.
 
 3. **Test bootstrap and registry load**
