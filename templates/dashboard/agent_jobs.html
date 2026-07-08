@@ -68,7 +68,7 @@
 {% block scripts %}
 <script>
     document.getElementById("refreshJobsBtn")?.addEventListener("click", function () {
-        if (window.rraToast) window.rraToast("Live SQL Agent job status refresh is wired in a later step.");
+        if (window.rraToast) window.rraToast(window.rraLiveDbMessage || "This action requires a live connection to MonthEndOrchestrationDB.");
     });
     // Highlight a job when navigated to via #job-<key> (from a step card).
     (function () {

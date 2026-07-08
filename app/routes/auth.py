@@ -12,7 +12,7 @@ auth_service = AuthService()
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
     if session.get("user_id"):
-        return redirect(url_for("auth.post_login"))
+        return redirect(url_for("dashboard.index"))
 
     error = None
     if request.method == "POST":
@@ -33,7 +33,7 @@ def login():
                 session["username"] = user["username"]
                 session["role"] = user["role"]
                 session.permanent = True
-                return redirect(url_for("auth.post_login"))
+                return redirect(url_for("dashboard.index"))
 
     return render_template("auth/login.html", error=error)
 
@@ -41,8 +41,8 @@ def login():
 @auth_bp.route("/post-login")
 @login_required
 def post_login():
-    """Temporary landing page until the dashboard is built (Step 2)."""
-    return render_template("auth/post_login.html")
+    """Legacy route — redirects to the operations console."""
+    return redirect(url_for("dashboard.index"))
 
 
 @auth_bp.route("/logout")

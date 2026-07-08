@@ -1,8 +1,8 @@
-"""Dashboard routes — Step 2: operations console layout.
+"""Dashboard routes — operations console pages.
 
-Read-only layout wired to mock data. Execution/validation actions are not
-implemented yet (Steps 6–7); the Run/Validate controls are rendered for Admin
-users only but do not trigger any logic.
+All pages render against mock data shaped like the MonthEndOrchestrationDB
+schema. The same view models are exposed as JSON under ``/api/v1/*`` for the
+live SQL integration step.
 """
 
 from flask import Blueprint, render_template
@@ -29,6 +29,18 @@ def index():
     )
 
 
+@dashboard_bp.route("/run-history")
+@login_required
+def run_history():
+    data = dashboard_service.get_run_history()
+    return render_template(
+        "dashboard/run_history.html",
+        runs=data["runs"],
+        totals=data["totals"],
+        active_connection=data["active_connection"],
+    )
+
+
 @dashboard_bp.route("/agent-jobs")
 @login_required
 def agent_jobs():
@@ -37,5 +49,63 @@ def agent_jobs():
         "dashboard/agent_jobs.html",
         groups=data["groups"],
         totals=data["totals"],
+        active_connection=data["active_connection"],
+    )
+
+
+@dashboard_bp.route("/logs")
+@login_required
+def logs():
+    data = dashboard_service.get_logs()
+    return render_template(
+        "dashboard/logs.html",
+        rows=data["rows"],
+        phases=data["phases"],
+        totals=data["totals"],
+        active_connection=data["active_connection"],
+    )
+
+
+@dashboard_bp.route("/monitoring")
+@login_required
+def monitoring():
+    data = dashboard_service.get_monitoring()
+    return render_template(
+        "dashboard/monitoring.html",
+        run=data["run"],
+        metrics=data["metrics"],
+        connections=data["connections"],
+        agent_jobs=data["agent_jobs"],
+        active_connection=data["active_connection"],
+    )
+
+
+@dashboard_bp.route("/validation")
+@login_required
+def validation():
+    data = dashboard_service.get_validation()
+    return render_template(
+        "dashboard/validation.html",
+        rows=data["rows"],
+        totals=data["totals"],
+        active_connection=data["active_connection"],
+    )
+
+
+@dashboard_bp.route("/reports")
+@login_required
+def reports():
+    return render_template("dashboard/reports.html")
+
+
+@dashboard_bp.route("/settings")
+@login_required
+def settings():
+    data = dashboard_service.get_settings()
+    return render_template(
+        "dashboard/settings.html",
+        connections=data["connections"],
+        app_version=data["app_version"],
+        data_source=data["data_source"],
         active_connection=data["active_connection"],
     )

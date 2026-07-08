@@ -1,0 +1,95 @@
+{% extends "console_base.html" %}
+{% from "dashboard/_macros.html" import log_status, stat_card, empty_state %}
+
+{% set active_nav = 'logs' %}
+{% block title %}Logs — RRA Month-End Orchestration{% endblock %}
+{% block topbar_title %}Execution Logs{% endblock %}
+
+{% block page %}
+    <div class="content-head">
+        <div class="content-title">
+            <h2>Execution Log</h2>
+            <span class="run-pill run-pill--running"><i class="bi bi-terminal"></i> {{ totals.total }} entries</span>
+        </div>
+        <button class="btn-ghost" type="button" id="exportLogsBtn"><i class="bi bi-download"></i> Export</button>
+    </div>
+
+    <section class="stat-grid stat-grid--4">
+        {{ stat_card('Total Entries', totals.total, 'bi-journal-text', 'blue', 'db_execution_log') }}
+        {{ stat_card('Success', totals.success, 'bi-check-circle-fill', 'green', 'Completed steps') }}
+        {{ stat_card('Failed', totals.failed, 'bi-x-circle-fill', 'red', 'Errors recorded') }}
+        {{ stat_card('Running', totals.running, 'bi-arrow-repeat', 'cyan', 'In-flight operations') }}
+    </section>
+
+    <div class="table-toolbar">
+        <div class="search-box">
+            <i class="bi bi-search"></i>
+            <input type="search" id="logSearch" placeholder="Search step, message, or server…" aria-label="Search logs" autocomplete="off">
+        </div>
+        <select id="logPhaseFilter" class="filter-select" aria-label="Filter by phase">
+            <option value="all">All phases</option>
+            {% for phase in phases %}
+            <option value="{{ phase.key }}">{{ phase.label }}</option>
+            {% endfor %}
+        </select>
+        <select id="logStatusFilter" class="filter-select" aria-label="Filter by status">
+            <option value="all">All statuses</option>
+            <option value="Success">Success</option>
+            <option value="Failed">Failed</option>
+            <option value="Running">Running</option>
+            <option value="Info">Info</option>
+        </select>
+        <span class="result-count" id="logResultCount"></span>
+    </div>
+
+    <section class="log-panel">
+        <div class="log-table-wrap">
+            <table class="log-table" id="logsTable">
+                <thead>
+                    <tr>
+                        <th>Time</th><th>Phase</th><th>Step</th><th>Message</th>
+                        <th>Status</th><th>Duration</th><th>Server</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                    <tr data-phase="{{ row.phase }}" data-status="{{ row.status }}"
+                        data-search="{{ (row.step_name ~ ' ' ~ row.message ~ ' ' ~ row.server_name)|lower }}">
+                        <td class="mono">{{ row.logged_at }}</td>
+                        <td><span class="phase-chip">{{ row.phase }}</span></td>
+                        <td>{{ row.step_name }}</td>
+                        <td class="log-msg">{{ row.message }}</td>
+                        <td>{{ log_status(row.status) }}</td>
+                        <td class="mono">{{ row.duration }}</td>
+                        <td class="mono muted">{{ row.server_name }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <div class="steps-empty d-none" id="logEmpty">
+        {{ empty_state('bi-inbox', 'No log entries match your filters', 'Try adjusting the search or filters.', 'clearLogFilters', 'Clear filters') }}
+    </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/table-filters.js') }}"></script>
+<script>
+    window.rraInitTableFilter({
+        searchId: "logSearch",
+        filterId: "logStatusFilter",
+        phaseFilterId: "logPhaseFilter",
+        tableId: "logsTable",
+        emptyId: "logEmpty",
+        countId: "logResultCount",
+        clearId: "clearLogFilters",
+        filterAttr: "status",
+        phaseAttr: "phase"
+    });
+    document.getElementById("exportLogsBtn")?.addEventListener("click", function () {
+        window.rraToast?.("Log export will be available when connected to MonthEndOrchestrationDB.");
+    });
+</script>
+{% endblock %}

@@ -31,3 +31,12 @@ document.getElementById("passwordToggle")?.addEventListener("click", function ()
     icon?.classList.toggle("bi-eye-slash", show);
     this.setAttribute("aria-label", show ? "Hide password" : "Show password");
 });
+
+document.getElementById("forgotPasswordLink")?.addEventListener("click", function (event) {
+    event.preventDefault();
+    const alertEl = document.getElementById("loginAlert");
+    const textEl = document.getElementById("loginAlertText");
+    if (!alertEl || !textEl) return;
+    textEl.textContent = "Contact your administrator to reset your password.";
+    alertEl.classList.remove("d-none");
+});

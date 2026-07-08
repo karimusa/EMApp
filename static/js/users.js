@@ -12,18 +12,18 @@
         }
     }
 
+    const msg = window.rraLiveDbMessage || "This action requires a live connection to MonthEndOrchestrationDB.";
+
     const addBtn = document.getElementById("addUserBtn");
     if (addBtn) {
         addBtn.addEventListener("click", function () {
-            notify("Adding users is wired in a later step.");
+            notify(msg);
         });
     }
 
     document.querySelectorAll("[data-user-action]").forEach(function (btn) {
         btn.addEventListener("click", function () {
-            const action = btn.dataset.userAction;
-            const name = btn.dataset.userName;
-            notify(action + ' "' + name + '" is wired in a later step.');
+            notify(msg);
         });
     });
 })();

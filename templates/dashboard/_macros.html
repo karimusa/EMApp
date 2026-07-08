@@ -1,4 +1,22 @@
-{# Reusable dashboard UI macros #}
+{% macro empty_state(icon, title, message, action_id=None, action_label=None) %}
+    <div class="empty-state">
+        <i class="bi {{ icon }}"></i>
+        <h4>{{ title }}</h4>
+        <p>{{ message }}</p>
+        {% if action_id and action_label %}
+        <button class="btn-ghost" type="button" id="{{ action_id }}">{{ action_label }}</button>
+        {% endif %}
+    </div>
+{% endmacro %}
+
+{% macro coming_soon_panel(title, description, phase) %}
+    <section class="coming-soon-panel" aria-labelledby="coming-soon-title">
+        <div class="coming-soon-icon" aria-hidden="true"><i class="bi bi-hourglass-split"></i></div>
+        <h2 id="coming-soon-title">{{ title }}</h2>
+        <p>{{ description }}</p>
+        <span class="coming-soon-badge">Coming Soon — {{ phase }}</span>
+    </section>
+{% endmacro %}
 
 {% macro status_pill(status) %}
     {% set cls = {'In Progress': 'running', 'Completed': 'success', 'Failed': 'failed'}.get(status, 'pending') %}

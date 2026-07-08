@@ -1,0 +1,81 @@
+{% extends "console_base.html" %}
+{% from "dashboard/_macros.html" import run_status_badge, stat_card, empty_state %}
+
+{% set active_nav = 'run_history' %}
+{% block title %}Run History — RRA Month-End Orchestration{% endblock %}
+{% block topbar_title %}Run History{% endblock %}
+
+{% block page %}
+    <div class="content-head">
+        <div class="content-title">
+            <h2>Run History</h2>
+            <span class="run-pill run-pill--running"><i class="bi bi-clock-history"></i> {{ totals.total }} run(s)</span>
+        </div>
+    </div>
+
+    <section class="stat-grid stat-grid--4">
+        {{ stat_card('Total Runs', totals.total, 'bi-collection', 'blue', 'All orchestration runs') }}
+        {{ stat_card('In Progress', totals.in_progress, 'bi-arrow-repeat', 'cyan', 'Active runs') }}
+        {{ stat_card('Completed', totals.completed, 'bi-check-circle-fill', 'green', 'Finished successfully') }}
+        {{ stat_card('Failed', totals.failed, 'bi-x-circle-fill', 'red', 'Runs with failures') }}
+    </section>
+
+    <div class="table-toolbar">
+        <div class="search-box">
+            <i class="bi bi-search"></i>
+            <input type="search" id="runSearch" placeholder="Search by period or user…" aria-label="Search runs" autocomplete="off">
+        </div>
+        <select id="runStatusFilter" class="filter-select" aria-label="Filter by status">
+            <option value="all">All statuses</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Completed">Completed</option>
+            <option value="Failed">Failed</option>
+        </select>
+        <span class="result-count" id="runResultCount"></span>
+    </div>
+
+    <section class="log-panel">
+        <div class="log-table-wrap">
+            <table class="log-table" id="runHistoryTable">
+                <thead>
+                    <tr>
+                        <th>Run ID</th><th>Period</th><th>Status</th><th>Started</th>
+                        <th>Completed</th><th>Duration</th><th>Started By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in runs %}
+                    <tr data-status="{{ r.status }}" data-search="{{ (r.period_label ~ ' ' ~ r.started_by)|lower }}">
+                        <td class="mono">{{ r.run_id }}</td>
+                        <td>{{ r.period_label }}</td>
+                        <td>{{ run_status_badge(r.status) }}</td>
+                        <td class="mono">{{ r.started_at }}</td>
+                        <td class="mono">{{ r.completed_at or '—' }}</td>
+                        <td class="mono">{{ (r.duration_seconds // 60) ~ 'm ' ~ (r.duration_seconds % 60) ~ 's' if r.duration_seconds else '—' }}</td>
+                        <td class="muted">{{ r.started_by }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <div class="steps-empty d-none" id="runEmpty">
+        {{ empty_state('bi-inbox', 'No runs match your filters', 'Try adjusting the search or status filter.', 'clearRunFilters', 'Clear filters') }}
+    </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/table-filters.js') }}"></script>
+<script>
+    window.rraInitTableFilter({
+        searchId: "runSearch",
+        filterId: "runStatusFilter",
+        tableId: "runHistoryTable",
+        emptyId: "runEmpty",
+        countId: "runResultCount",
+        clearId: "clearRunFilters",
+        filterAttr: "status"
+    });
+</script>
+{% endblock %}

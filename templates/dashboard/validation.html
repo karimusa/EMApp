@@ -1,0 +1,87 @@
+{% extends "console_base.html" %}
+{% from "dashboard/_macros.html" import stat_card, empty_state %}
+
+{% set active_nav = 'validation' %}
+{% block title %}Validation — RRA Month-End Orchestration{% endblock %}
+{% block topbar_title %}Validation{% endblock %}
+
+{% block page %}
+    <div class="content-head">
+        <div class="content-title">
+            <h2>Step Validation</h2>
+            <span class="run-pill run-pill--{{ 'failed' if totals.fail else 'success' }}">
+                <i class="bi bi-patch-check"></i> {{ totals.pass }} passed · {{ totals.fail }} failed
+            </span>
+        </div>
+    </div>
+
+    <section class="stat-grid stat-grid--4">
+        {{ stat_card('Total Steps', totals.total, 'bi-list-check', 'blue', 'Validation contract rows') }}
+        {{ stat_card('Passed', totals.pass, 'bi-patch-check-fill', 'green', 'Artifacts verified') }}
+        {{ stat_card('Failed', totals.fail, 'bi-patch-exclamation-fill', 'red', 'Requires attention') }}
+        {{ stat_card('Pending', totals.pending, 'bi-clock', 'amber', 'Awaiting execution') }}
+    </section>
+
+    <div class="table-toolbar">
+        <div class="search-box">
+            <i class="bi bi-search"></i>
+            <input type="search" id="valSearch" placeholder="Search step or proc…" aria-label="Search validations" autocomplete="off">
+        </div>
+        <select id="valStatusFilter" class="filter-select" aria-label="Filter by validation status">
+            <option value="all">All statuses</option>
+            <option value="PASS">Passed</option>
+            <option value="FAIL">Failed</option>
+            <option value="PENDING">Pending</option>
+        </select>
+        <span class="result-count" id="valResultCount"></span>
+    </div>
+
+    <section class="log-panel">
+        <div class="log-table-wrap">
+            <table class="log-table" id="validationTable">
+                <thead>
+                    <tr>
+                        <th>#</th><th>Phase</th><th>Step</th><th>Status</th>
+                        <th>Expected</th><th>Matched</th><th>Validation Time</th><th>Result</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                    <tr data-status="{{ row.ValidationStatus }}"
+                        data-search="{{ (row.step_name ~ ' ' ~ row.validate_proc_name)|lower }}">
+                        <td class="mono">{{ '%02d'|format(row.step_order) }}</td>
+                        <td><span class="phase-chip">{{ row.phase_code }}</span></td>
+                        <td>{{ row.step_name }}</td>
+                        <td>
+                            <span class="val-status-pill val-status-pill--{{ row.ValidationStatus|lower }}">{{ row.ValidationStatus }}</span>
+                        </td>
+                        <td class="muted">{{ row.ExpectedItem }}</td>
+                        <td class="muted">{{ row.MatchedItem }}</td>
+                        <td class="mono">{{ row.ValidationTime }}</td>
+                        <td class="log-msg">{{ row.ResultMessage }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <div class="steps-empty d-none" id="valEmpty">
+        {{ empty_state('bi-inbox', 'No validation rows match your filters', 'Try adjusting the search or status filter.', 'clearValFilters', 'Clear filters') }}
+    </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/table-filters.js') }}"></script>
+<script>
+    window.rraInitTableFilter({
+        searchId: "valSearch",
+        filterId: "valStatusFilter",
+        tableId: "validationTable",
+        emptyId: "valEmpty",
+        countId: "valResultCount",
+        clearId: "clearValFilters",
+        filterAttr: "status"
+    });
+</script>
+{% endblock %}

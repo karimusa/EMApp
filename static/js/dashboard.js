@@ -17,6 +17,8 @@
     const resultCount = document.getElementById("resultCount");
     const emptyState = document.getElementById("stepsEmpty");
 
+    const LIVE_DB_MSG = window.rraLiveDbMessage || "This action requires a live connection to MonthEndOrchestrationDB.";
+
     // ---- Toast helper (shared with other console pages) ----
     let stack = document.querySelector(".toast-stack");
     if (!stack) {
@@ -25,6 +27,10 @@
         document.body.appendChild(stack);
     }
     function toast(message) {
+        if (window.rraToast) {
+            window.rraToast(message);
+            return;
+        }
         const el = document.createElement("div");
         el.className = "toast";
         el.innerHTML = '<i class="bi bi-info-circle-fill"></i><span></span>';
@@ -210,8 +216,8 @@
 
     const modalRun = document.getElementById("stepModalRun");
     const modalValidate = document.getElementById("stepModalValidate");
-    if (modalRun) modalRun.addEventListener("click", () => toast('Run for "' + activeStepName + '" is wired in a later step.'));
-    if (modalValidate) modalValidate.addEventListener("click", () => toast('Validation for "' + activeStepName + '" is wired in a later step.'));
+    if (modalRun) modalRun.addEventListener("click", () => toast(LIVE_DB_MSG));
+    if (modalValidate) modalValidate.addEventListener("click", () => toast(LIVE_DB_MSG));
 
     // ---- Full log modal ----
     const logModal = document.getElementById("logModal");
@@ -227,24 +233,19 @@
         });
     }
 
-    // ---- Sidebar toggle (mobile) ----
-    const collapse = document.querySelector(".sidebar-collapse");
-    const sidebar = document.querySelector(".sidebar");
-    if (collapse && sidebar) {
-        collapse.addEventListener("click", () => sidebar.classList.toggle("open"));
-    }
+    // ---- Sidebar toggle handled in console.js ----
 
-    // ---- Action buttons (not wired until later steps) ----
+    // ---- Action buttons (require live DB) ----
     document.querySelectorAll(".btn-run").forEach(function (btn) {
         if (btn.id === "stepModalRun") return;
-        btn.addEventListener("click", () => toast('Run for "' + btn.dataset.stepName + '" is wired in a later step.'));
+        btn.addEventListener("click", () => toast(LIVE_DB_MSG));
     });
     document.querySelectorAll(".btn-validate").forEach(function (btn) {
         if (btn.id === "stepModalValidate") return;
-        btn.addEventListener("click", () => toast('Validation for "' + btn.dataset.stepName + '" is wired in a later step.'));
+        btn.addEventListener("click", () => toast(LIVE_DB_MSG));
     });
     const startBtn = document.getElementById("startRunBtn");
-    if (startBtn) startBtn.addEventListener("click", () => toast("Starting a new run is wired in a later step."));
+    if (startBtn) startBtn.addEventListener("click", () => toast(LIVE_DB_MSG));
 
     // ---- Restore persisted preferences ----
     let savedPhase = null;

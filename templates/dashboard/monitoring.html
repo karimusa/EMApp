@@ -1,0 +1,78 @@
+{% extends "console_base.html" %}
+{% from "dashboard/_macros.html" import status_pill, stat_card %}
+
+{% set active_nav = 'monitoring' %}
+{% block title %}Monitoring — RRA Month-End Orchestration{% endblock %}
+{% block topbar_title %}Monitoring{% endblock %}
+
+{% block page %}
+    <div class="content-head">
+        <div class="content-title">
+            <h2>Operations Monitoring</h2>
+            {{ status_pill(run.status) }}
+        </div>
+        <button class="btn-ghost" type="button" id="refreshMonitoringBtn"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+    </div>
+
+    <section class="stat-grid stat-grid--4">
+        {{ stat_card('Progress', metrics.progress_pct ~ '%', 'bi-graph-up-arrow', 'blue', metrics.success_count ~ ' / ' ~ metrics.total_steps ~ ' steps') }}
+        {{ stat_card('Agent Jobs', agent_jobs.total, 'bi-hdd-stack', 'cyan', agent_jobs.healthy ~ ' healthy') }}
+        {{ stat_card('Running Jobs', agent_jobs.running, 'bi-arrow-repeat', 'run', 'SQL Agent activity') }}
+        {{ stat_card('Failed Jobs', agent_jobs.failed, 'bi-x-circle-fill', 'red', 'Last run failed') }}
+    </section>
+
+    <div class="panel-row">
+        <section class="log-panel">
+            <div class="log-head"><h3><i class="bi bi-database-fill"></i> Database Connections</h3></div>
+            <div class="log-table-wrap">
+                <table class="log-table">
+                    <thead>
+                        <tr><th>Connection</th><th>Server</th><th>Database</th><th>Status</th><th>Latency</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for c in connections %}
+                        <tr>
+                            <td><strong>{{ c.connection_name }}</strong></td>
+                            <td class="mono">{{ c.server_name }}</td>
+                            <td class="mono muted">{{ c.database_name }}</td>
+                            <td>
+                                {% if c.status == 'Connected' %}
+                                <span class="log-badge log-badge--ok"><i class="bi bi-check-circle-fill"></i> Connected</span>
+                                {% else %}
+                                <span class="log-badge log-badge--info">Inactive</span>
+                                {% endif %}
+                            </td>
+                            <td class="mono">{{ c.latency_ms ~ ' ms' if c.latency_ms else '—' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="log-panel">
+            <div class="log-head"><h3><i class="bi bi-speedometer2"></i> Current Run</h3></div>
+            <dl class="settings-facts">
+                <div><dt>Period</dt><dd>{{ run.period_label }}</dd></div>
+                <div><dt>Job</dt><dd>{{ run.job_name }}</dd></div>
+                <div><dt>Started</dt><dd class="mono">{{ run.started_at }}</dd></div>
+                <div><dt>Run ID</dt><dd class="mono">{{ run.run_id }}</dd></div>
+                <div><dt>Steps running</dt><dd>{{ metrics.running_count }}</dd></div>
+                <div><dt>Validation issues</dt><dd>{{ metrics.validation_failed_count }}</dd></div>
+            </dl>
+        </section>
+    </div>
+
+    <p class="page-hint">
+        Live telemetry refreshes from <code>MonthEndOrchestrationDB</code> when the database connection is enabled.
+        Mock data is shown until then.
+    </p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById("refreshMonitoringBtn")?.addEventListener("click", function () {
+        window.rraToast?.("Live monitoring refresh will connect to MonthEndOrchestrationDB.");
+    });
+</script>
+{% endblock %}

@@ -9,7 +9,7 @@ from config.settings import Config
 
 
 def create_app(config_class=Config):
-    """Application factory. Step 1: login page only."""
+    """Application factory."""
     app = Flask(
         __name__,
         template_folder="../templates",
@@ -19,17 +19,19 @@ def create_app(config_class=Config):
     _configure_logging(app)
 
     from app.routes.admin import admin_bp
+    from app.routes.api import api_bp
     from app.routes.auth import auth_bp
     from app.routes.dashboard import dashboard_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(api_bp)
 
     @app.route("/")
     def root():
         if session.get("user_id"):
-            return redirect(url_for("auth.post_login"))
+            return redirect(url_for("dashboard.index"))
         return redirect(url_for("auth.login"))
 
     @app.context_processor

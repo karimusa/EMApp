@@ -1,0 +1,39 @@
+{% extends "console_base.html" %}
+{% from "dashboard/_macros.html" import coming_soon_panel %}
+
+{% set active_nav = 'reports' %}
+{% block title %}Reports — RRA Month-End Orchestration{% endblock %}
+{% block topbar_title %}Reports{% endblock %}
+
+{% block page %}
+    <div class="content-head">
+        <div class="content-title">
+            <h2>Reports</h2>
+        </div>
+    </div>
+
+    {{ coming_soon_panel(
+        'Month-End Reports',
+        'Executive summaries, close checklists, and audit exports will be available in a later release. '
+        'The navigation item is reserved so the console layout stays complete.',
+        'Phase 2'
+    ) }}
+
+    <section class="feature-preview-grid" aria-label="Planned report types">
+        <article class="preview-card">
+            <i class="bi bi-clipboard-data"></i>
+            <h4>Close Summary</h4>
+            <p>Period-level completion status with phase breakdown.</p>
+        </article>
+        <article class="preview-card">
+            <i class="bi bi-shield-check"></i>
+            <h4>Validation Audit</h4>
+            <p>Exportable validation results per step and proc.</p>
+        </article>
+        <article class="preview-card">
+            <i class="bi bi-clock-history"></i>
+            <h4>Run Timeline</h4>
+            <p>Historical duration trends across orchestration runs.</p>
+        </article>
+    </section>
+{% endblock %}

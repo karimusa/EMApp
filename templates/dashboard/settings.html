@@ -1,0 +1,73 @@
+{% extends "console_base.html" %}
+
+{% set active_nav = 'settings' %}
+{% block title %}Settings — RRA Month-End Orchestration{% endblock %}
+{% block topbar_title %}Settings{% endblock %}
+
+{% block page %}
+    <div class="content-head">
+        <div class="content-title">
+            <h2>Settings</h2>
+            <span class="run-pill run-pill--running"><i class="bi bi-gear"></i> v{{ app_version }}</span>
+        </div>
+        {% if nav_is_admin %}
+        <button class="btn-primary" type="button" id="editConnectionsBtn">
+            <i class="bi bi-database-gear"></i> Manage Connections
+        </button>
+        {% endif %}
+    </div>
+
+    <p class="page-hint">
+        Connection settings are loaded from <code>orchestration.app_connections</code>.
+        {% if data_source == 'mock' %}
+        Currently displaying mock data — live values appear when MonthEndOrchestrationDB is connected.
+        {% endif %}
+        {% if not nav_is_admin %}
+        You have read-only access. Contact an administrator to change connection settings.
+        {% endif %}
+    </p>
+
+    <section class="log-panel">
+        <div class="log-head"><h3><i class="bi bi-database-fill"></i> Database Connections</h3></div>
+        <div class="connections-grid">
+            {% for c in connections %}
+            <article class="settings-card {% if c.is_active %}settings-card--active{% endif %}">
+                <div class="settings-card-head">
+                    <h4>{{ c.connection_name }}</h4>
+                    {% if c.is_active %}
+                    <span class="log-badge log-badge--ok">Active</span>
+                    {% else %}
+                    <span class="log-badge log-badge--info">Standby</span>
+                    {% endif %}
+                </div>
+                <dl class="settings-facts">
+                    <div><dt>Server</dt><dd class="mono">{{ c.server_name }}</dd></div>
+                    <div><dt>Database</dt><dd class="mono">{{ c.database_name }}</dd></div>
+                    <div><dt>Username</dt><dd class="mono">{{ c.username }}</dd></div>
+                    <div><dt>Driver</dt><dd class="mono">{{ c.driver }}</dd></div>
+                    <div><dt>Trust certificate</dt><dd>{{ c.trust_server_certificate }}</dd></div>
+                    <div><dt>Created</dt><dd class="mono muted">{{ c.created_at }}</dd></div>
+                </dl>
+            </article>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="log-panel">
+        <div class="log-head"><h3><i class="bi bi-sliders"></i> Application</h3></div>
+        <dl class="settings-facts settings-facts--inline">
+            <div><dt>Version</dt><dd>{{ app_version }}</dd></div>
+            <div><dt>Data source</dt><dd>{{ 'Mock (development)' if data_source == 'mock' else data_source }}</dd></div>
+            <div><dt>Active connection</dt><dd class="mono">{{ active_connection.connection_name }} → {{ active_connection.database_name }}</dd></div>
+            <div><dt>Your role</dt><dd>{{ 'Administrator' if nav_is_admin else 'Read Only' }}</dd></div>
+        </dl>
+    </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById("editConnectionsBtn")?.addEventListener("click", function () {
+        window.rraToast?.("Connection management will be enabled when MonthEndOrchestrationDB is connected.");
+    });
+</script>
+{% endblock %}

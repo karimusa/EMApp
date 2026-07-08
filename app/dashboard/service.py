@@ -140,9 +140,120 @@ class DashboardService:
         return dict(mock_data.get_current_run())
 
     def _build_log(self) -> list[dict[str, Any]]:
+        return self.get_logs()["rows"]
+
+    def get_run_history(self) -> dict[str, Any]:
+        """Full run history view model (``orchestration.job_runs``)."""
+        runs = mock_data.get_job_runs()
+        return {
+            "runs": runs,
+            "totals": {
+                "total": len(runs),
+                "in_progress": sum(1 for r in runs if r["status"] == "In Progress"),
+                "completed": sum(1 for r in runs if r["status"] == "Completed"),
+                "failed": sum(1 for r in runs if r["status"] == "Failed"),
+            },
+            "active_connection": self.connections.get_active(),
+        }
+
+    def get_logs(self) -> dict[str, Any]:
+        """Full execution log view model (``orchestration.db_execution_log``)."""
         rows = []
         for row in mock_data.get_execution_log():
             enriched = dict(row)
             enriched["duration"] = _format_duration(row.get("duration_seconds"))
             rows.append(enriched)
-        return rows
+        return {
+            "rows": rows,
+            "phases": mock_data.PHASES,
+            "totals": {
+                "total": len(rows),
+                "success": sum(1 for r in rows if r["status"] == "Success"),
+                "failed": sum(1 for r in rows if r["status"] == "Failed"),
+                "running": sum(1 for r in rows if r["status"] == "Running"),
+            },
+            "active_connection": self.connections.get_active(),
+        }
+
+    def get_validation(self) -> dict[str, Any]:
+        """Validation results across all steps."""
+        job_steps = {s["step_id"]: s for s in mock_data.get_job_steps()}
+        validations = mock_data.get_validation_results()
+        rows = []
+        for step_id, result in sorted(validations.items()):
+            step = job_steps[step_id]
+            rows.append(
+                {
+                    "step_id": step_id,
+                    "step_order": step["step_order"],
+                    "step_name": step["step_name"],
+                    "phase_code": step["phase_code"],
+                    "server_name": step["server_name"],
+                    "execute_proc_name": step["execute_proc_name"],
+                    "validate_proc_name": step["validate_proc_name"],
+                    **result,
+                }
+            )
+        return {
+            "rows": rows,
+            "totals": {
+                "total": len(rows),
+                "pass": sum(1 for r in rows if r["ValidationStatus"] == "PASS"),
+                "fail": sum(1 for r in rows if r["ValidationStatus"] == "FAIL"),
+                "pending": sum(1 for r in rows if r["ValidationStatus"] == "PENDING"),
+            },
+            "active_connection": self.connections.get_active(),
+        }
+
+    def get_monitoring(self) -> dict[str, Any]:
+        """Operations monitoring overview."""
+        metrics = mock_data.get_run_metrics()
+        jobs = mock_data.get_monitored_agent_jobs()
+        connections = self.connections.list_connections()
+        return {
+            "run": mock_data.get_current_run(),
+            "metrics": metrics,
+            "connections": [
+                {
+                    "connection_name": c["connection_name"],
+                    "server_name": c["server_name"],
+                    "database_name": c["database_name"],
+                    "is_active": c["is_active"],
+                    "status": "Connected" if c["is_active"] else "Inactive",
+                    "latency_ms": 12 if c["is_active"] else None,
+                }
+                for c in connections
+            ],
+            "agent_jobs": {
+                "total": len(jobs),
+                "running": sum(1 for j in jobs if j["is_running"]),
+                "failed": sum(1 for j in jobs if j["last_run_status"] == "Failed"),
+                "healthy": sum(1 for j in jobs if j["last_run_status"] == "Succeeded"),
+            },
+            "active_connection": self.connections.get_active(),
+        }
+
+    def get_settings(self) -> dict[str, Any]:
+        """Application and connection settings (read-only until live DB)."""
+        connections = []
+        for conn in self.connections.list_connections():
+            connections.append(
+                {
+                    "connection_id": conn["connection_id"],
+                    "connection_name": conn["connection_name"],
+                    "server_name": conn["server_name"],
+                    "database_name": conn["database_name"],
+                    "username": conn["username"],
+                    "driver": conn["driver"],
+                    "trust_server_certificate": conn["trust_server_certificate"],
+                    "is_active": conn["is_active"],
+                    "created_at": conn["created_at"],
+                    "updated_at": conn.get("updated_at"),
+                }
+            )
+        return {
+            "connections": connections,
+            "app_version": "1.0.0",
+            "data_source": "mock",
+            "active_connection": self.connections.get_active(),
+        }
