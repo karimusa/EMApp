@@ -17,6 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from app.db.credentials import is_one_way_hash, stored_credential_from_row
 from config.bootstrap import (
     format_incomplete_bootstrap_message,
     load_bootstrap_config,
@@ -25,6 +26,29 @@ from config.bootstrap import (
     run_bootstrap_self_test_and_print,
 )
 from config.settings import build_runtime_config, load_env_file
+
+
+def _primary_failure_hint(rows: list[dict]) -> str | None:
+    primary = next(
+        (r for r in rows if str(r.get("environment_name", "")).upper() == "PRIMARY"),
+        None,
+    )
+    if not primary:
+        return None
+    stored = stored_credential_from_row(primary)
+    if stored and is_one_way_hash(stored):
+        return (
+            "Hint: PRIMARY stores a one-way hash in sql_password_encrypted/"
+            "sql_password_hash. Replace it with the real SQL login password or "
+            "Fernet ciphertext from scripts/encrypt_password.py."
+        )
+    if not stored:
+        return (
+            "Hint: PRIMARY has no sql_password_encrypted value. "
+            "Set it in orchestration.app_connections or match bootstrap "
+            "server/database/user so BOOTSTRAP_PASSWORD applies."
+        )
+    return None
 
 
 def _check(label: str, fn) -> None:
@@ -60,25 +84,12 @@ def main() -> int:
         with app.app_context():
             cm = init_connection_manager(app)
             cm.reload()
-            if "PRIMARY" not in cm.all_connections():
-                print("FAILED: PRIMARY connection not loaded from registry", file=sys.stderr)
-                return 1
-            try:
-                cm.test_connection("PRIMARY")
-            except Exception as exc:
-                print(f"FAILED: PRIMARY connection: {exc}", file=sys.stderr)
-                if rows:
-                    primary = next(
-                        (r for r in rows if str(r.get("environment_name", "")).upper() == "PRIMARY"),
-                        None,
-                    )
-                    if primary and not (primary.get("sql_password_hash") or "").strip():
-                        print(
-                            "Hint: PRIMARY sql_password_hash is empty. "
-                            "Set it in orchestration.app_connections or match bootstrap "
-                            "server/database/user so BOOTSTRAP_PASSWORD applies.",
-                            file=sys.stderr,
-                        )
+            primary_error = cm.get_primary_error()
+            if primary_error:
+                print(f"FAILED: PRIMARY connection: {primary_error}", file=sys.stderr)
+                hint = _primary_failure_hint(rows)
+                if hint:
+                    print(hint, file=sys.stderr)
                 return 1
             print("PRIMARY connection: SUCCESS")
         return 0
@@ -127,13 +138,10 @@ def main() -> int:
         for name, conn in conns.items():
             print(f"  {name}: {conn.environment_name} -> {conn.server_name} / {conn.database_name}")
 
-        if "PRIMARY" in conns:
-            try:
-                cm.test_connection("PRIMARY")
-                print("  OK  PRIMARY connection")
-            except Exception as exc:
-                print(f"FAILED: PRIMARY connection: {exc}", file=sys.stderr)
-                return 1
+        if cm.get_primary_error():
+            print(f"FAILED: PRIMARY connection: {cm.get_primary_error()}", file=sys.stderr)
+            return 1
+        print("  OK  PRIMARY connection")
 
         print("\nRead-layer checks:")
         _check("dbo.users", lambda: data.get_users())

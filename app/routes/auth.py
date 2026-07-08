@@ -6,6 +6,7 @@ from flask import Blueprint, redirect, render_template, request, session, url_fo
 
 from app.auth.decorators import login_required
 from app.auth.service import AuthService
+from app.db.connection_manager import get_connection_manager
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ def _database_unavailable_message() -> str:
     return (
         "The application database is not reachable. "
         "Verify orchestration.app_connections credentials for PRIMARY "
-        "(sql_username / sql_password_hash) or contact your administrator."
+        "(sql_username / sql_password_encrypted) or contact your administrator."
     )
 
 
@@ -26,19 +27,27 @@ def login():
     if session.get("user_id"):
         return redirect(url_for("dashboard.index"))
 
-    error = None
+    config_error = None
+    try:
+        config_error = get_connection_manager().get_primary_error()
+    except RuntimeError:
+        pass
+
+    error = config_error
     if request.method == "POST":
         username = (request.form.get("username") or "").strip()
         password = request.form.get("password") or ""
 
-        if not username or not password:
+        if config_error:
+            error = config_error
+        elif not username or not password:
             error = "Username and password are required."
         else:
             try:
                 user = auth_service.get_by_username(username)
-            except ConnectionError:
+            except ConnectionError as exc:
                 logger.exception("Database connection error during login")
-                error = _database_unavailable_message()
+                error = str(exc) or _database_unavailable_message()
             except Exception as exc:
                 if exc.__class__.__module__.startswith("pyodbc"):
                     logger.exception("SQL error during login")
@@ -61,7 +70,11 @@ def login():
                         return redirect(next_url)
                     return redirect(url_for("dashboard.index"))
 
-    return render_template("auth/login.html", error=error)
+    return render_template(
+        "auth/login.html",
+        error=error,
+        config_error=config_error,
+    )
 
 
 @auth_bp.route("/post-login")

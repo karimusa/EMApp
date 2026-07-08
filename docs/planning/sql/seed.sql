@@ -18,8 +18,8 @@ DECLARE @RemoteUser      NVARCHAR(200) = N'YOUR_REMOTE_USER';
 DECLARE @RemotePassword  NVARCHAR(200) = N'YOUR_REMOTE_PASSWORD';
 -- =============================================
 
--- Users: set password hashes with scripts/encrypt_password.py or seed_database.py
--- The Python seeder (scripts/seed_database.py) is the recommended path.
+-- Users: set password hashes with scripts/seed_database.py (Werkzeug hashes in dbo.users only).
+-- SQL login passwords for app_connections belong in sql_password_encrypted (never SHA hashes).
 
 IF NOT EXISTS (SELECT 1 FROM orchestration.jobs WHERE job_id = 1)
 BEGIN
@@ -30,14 +30,14 @@ END;
 IF NOT EXISTS (SELECT 1 FROM orchestration.app_connections WHERE environment_name = N'PRIMARY')
 BEGIN
     INSERT INTO orchestration.app_connections
-        (environment_name, server_name, database_name, auth_type, sql_username, sql_password_hash, is_active)
+        (environment_name, server_name, database_name, auth_type, sql_username, sql_password_encrypted, is_active)
     VALUES (N'PRIMARY', @PrimaryServer, @PrimaryDatabase, N'sql', @PrimaryUser, @PrimaryPassword, 1);
 END;
 
 IF NOT EXISTS (SELECT 1 FROM orchestration.app_connections WHERE environment_name = N'REMOTE_SQL')
 BEGIN
     INSERT INTO orchestration.app_connections
-        (environment_name, server_name, database_name, auth_type, sql_username, sql_password_hash, is_active)
+        (environment_name, server_name, database_name, auth_type, sql_username, sql_password_encrypted, is_active)
     VALUES (N'REMOTE_SQL', @RemoteServer, @RemoteDatabase, N'sql', @RemoteUser, @RemotePassword, 1);
 END;
 

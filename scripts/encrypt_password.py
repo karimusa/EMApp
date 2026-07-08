@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Encrypt a SQL password for orchestration.app_connections.sql_password_hash."""
+"""Encrypt a SQL login password for orchestration.app_connections.sql_password_encrypted."""
 
 from __future__ import annotations
 
@@ -19,7 +19,9 @@ from app.db.crypto import encrypt_password
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Encrypt a SQL password for sql_password_hash")
+    parser = argparse.ArgumentParser(
+        description="Encrypt a SQL login password for sql_password_encrypted"
+    )
     parser.add_argument("password", help="Plain-text password to encrypt")
     parser.add_argument(
         "--key",

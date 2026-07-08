@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.db.connection_manager import APP_CONNECTIONS_REGISTRY_SQL, get_connection_manager
+from app.db.connection_manager import (
+    APP_CONNECTIONS_REGISTRY_SQL,
+    LEGACY_APP_CONNECTIONS_REGISTRY_SQL,
+    get_connection_manager,
+)
+from app.db.credentials import stored_credential_from_row
 from app.db.formatters import coerce_bool, format_timestamp
 from app.db.repositories.base import query_primary, use_mock_data
 
@@ -16,8 +21,16 @@ class ConnectionsRepository:
 
             return mock_data.get_app_connections()
 
-        rows = query_primary(APP_CONNECTIONS_REGISTRY_SQL)
+        rows = self._query_registry()
         return [self._normalize(row) for row in rows]
+
+    def _query_registry(self) -> list[dict[str, Any]]:
+        try:
+            return query_primary(APP_CONNECTIONS_REGISTRY_SQL)
+        except Exception as exc:
+            if "sql_password_encrypted" not in str(exc):
+                raise
+            return query_primary(LEGACY_APP_CONNECTIONS_REGISTRY_SQL)
 
     def get_active(self) -> dict[str, Any]:
         connections = self.list_connections()
@@ -39,7 +52,7 @@ class ConnectionsRepository:
             return None
 
     def _normalize(self, row: dict[str, Any]) -> dict[str, Any]:
-        password_hash = row.get("sql_password_hash")
+        credential = stored_credential_from_row(row)
         return {
             "connection_id": row["connection_id"],
             "environment_name": row["environment_name"],
@@ -47,9 +60,10 @@ class ConnectionsRepository:
             "database_name": row["database_name"],
             "auth_type": row.get("auth_type") or "sql",
             "sql_username": row.get("sql_username") or "",
-            "sql_password_hash": (
-                "gAAAAAB...redacted" if password_hash else None
+            "sql_password_encrypted": (
+                "gAAAAAB...redacted" if credential else None
             ),
+            "sql_password_hash": None,
             "description": row.get("description") or "",
             "is_active": coerce_bool(row.get("is_active")),
             "created_at": format_timestamp(row.get("created_at")),

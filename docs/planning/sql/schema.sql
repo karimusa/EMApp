@@ -35,7 +35,8 @@ BEGIN
         database_name              NVARCHAR(200) NOT NULL,
         auth_type                  NVARCHAR(50)  NOT NULL DEFAULT 'sql',
         sql_username               NVARCHAR(200) NULL,
-        sql_password_hash          NVARCHAR(MAX) NULL,
+        sql_password_encrypted     NVARCHAR(MAX) NULL,  -- Fernet ciphertext or plain text (dev)
+        sql_password_hash          NVARCHAR(MAX) NULL,  -- legacy name; do not store SHA hashes
         description                NVARCHAR(500) NULL,
         created_at                 DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
         updated_at                 DATETIME2 NULL

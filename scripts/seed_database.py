@@ -85,6 +85,69 @@ def _seconds_after(seconds: int) -> datetime:
     return _RUN_DATE + timedelta(seconds=seconds)
 
 
+def _upsert_app_connection(
+    cursor,
+    environment_name: str,
+    server: str,
+    database: str,
+    user: str,
+    password: str,
+) -> None:
+    """Store the real SQL login password in sql_password_encrypted (never a one-way hash)."""
+    credential = password or None
+    insert_sql = """
+        IF NOT EXISTS (SELECT 1 FROM orchestration.app_connections WHERE environment_name = ?)
+        INSERT INTO orchestration.app_connections
+            (environment_name, server_name, database_name, auth_type, sql_username,
+             sql_password_encrypted, sql_password_hash, is_active)
+        VALUES (?, ?, ?, 'sql', ?, ?, NULL, 1)
+    """
+    try:
+        cursor.execute(
+            insert_sql,
+            (environment_name, environment_name, server, database, user, credential),
+        )
+    except Exception:
+        cursor.execute(
+            """
+            IF NOT EXISTS (SELECT 1 FROM orchestration.app_connections WHERE environment_name = ?)
+            INSERT INTO orchestration.app_connections
+                (environment_name, server_name, database_name, auth_type, sql_username, sql_password_hash, is_active)
+            VALUES (?, ?, ?, 'sql', ?, ?, 1)
+            """,
+            (environment_name, environment_name, server, database, user, credential),
+        )
+
+    if not credential:
+        return
+
+    update_sql = """
+        UPDATE orchestration.app_connections
+        SET server_name = ?,
+            database_name = ?,
+            sql_username = ?,
+            sql_password_encrypted = ?,
+            sql_password_hash = NULL,
+            updated_at = SYSUTCDATETIME()
+        WHERE environment_name = ?
+    """
+    try:
+        cursor.execute(update_sql, (server, database, user, credential, environment_name))
+    except Exception:
+        cursor.execute(
+            """
+            UPDATE orchestration.app_connections
+            SET server_name = ?,
+                database_name = ?,
+                sql_username = ?,
+                sql_password_hash = ?,
+                updated_at = SYSUTCDATETIME()
+            WHERE environment_name = ?
+            """,
+            (server, database, user, credential, environment_name),
+        )
+
+
 def seed(db) -> None:
     cursor = db.cursor()
 
@@ -123,32 +186,7 @@ def seed(db) -> None:
         ),
     ]
     for name, server, database, user, password in connections:
-        cursor.execute(
-            """
-            IF NOT EXISTS (SELECT 1 FROM orchestration.app_connections WHERE environment_name = ?)
-            INSERT INTO orchestration.app_connections
-                (environment_name, server_name, database_name, auth_type, sql_username, sql_password_hash, is_active)
-            VALUES (?, ?, ?, 'sql', ?, ?, 1)
-            """,
-            (name, name, server, database, user, password or None),
-        )
-        if password:
-            cursor.execute(
-                """
-                UPDATE orchestration.app_connections
-                SET server_name = ?,
-                    database_name = ?,
-                    sql_username = ?,
-                    sql_password_hash = ?,
-                    updated_at = SYSUTCDATETIME()
-                WHERE environment_name = ?
-                  AND (
-                      ISNULL(sql_password_hash, N'') = N''
-                      OR sql_password_hash <> ?
-                  )
-                """,
-                (server, database, user, password, name, password),
-            )
+        _upsert_app_connection(cursor, name, server, database, user, password)
 
     # orchestration.jobs
     cursor.execute("SET IDENTITY_INSERT orchestration.jobs ON")

@@ -25,10 +25,14 @@ Enterprise month-end orchestration console. UI is frozen; data loads through
    | `BOOTSTRAP_USER` | `MonthEndApp` |
    | `BOOTSTRAP_PASSWORD` | `MonthEndApp` |
 
-   `CONNECTION_SECRET_KEY` — leave blank unless `sql_password_hash` is Fernet-encrypted in the database.
+   `CONNECTION_SECRET_KEY` — required only when `sql_password_encrypted` is Fernet-encrypted in the database.
 
    `.env` contains **only the bootstrap connection**. Runtime SQL connections load from
    `orchestration.app_connections` after bootstrap succeeds.
+
+   **Important:** `dbo.users.password_hash` is a one-way app login hash.
+   `orchestration.app_connections.sql_password_encrypted` must store the **real SQL login
+   password** (plain text for development) or Fernet ciphertext — never a SHA/bcrypt hash.
 
 3. **Test bootstrap and registry load**
 
@@ -46,6 +50,7 @@ Enterprise month-end orchestration console. UI is frozen; data loads through
 4. **Deploy schema and seed** (first-time database setup)
 
    - Deploy `docs/planning/sql/schema.sql`
+   - On existing databases, run `docs/planning/sql/migrations/001_add_sql_password_encrypted.sql`
    - Fill `SEED_*` in `.env` (or `scripts\seed.env`) and run `python scripts\seed_database.py`
 
 5. **Start the app**
@@ -75,7 +80,7 @@ start.bat
 | `start.bat` | Run setup (prepare only) then start the app on port **50006** |
 | `scripts/seed_database.py` | Seed all tables from registry + sample run data |
 | `scripts/verify_live_reads.py` | Confirm live SQL read layer for every screen |
-| `scripts/encrypt_password.py` | Encrypt connection passwords for `app_connections` |
+| `scripts/encrypt_password.py` | Encrypt SQL login passwords for `sql_password_encrypted` |
 
 ## Database-driven configuration
 

@@ -37,7 +37,7 @@
                     </div>
                 </div>
 
-                <form id="loginForm" method="POST" action="{{ url_for('auth.login') }}" novalidate>
+                <form id="loginForm" method="POST" action="{{ url_for('auth.login') }}" novalidate{% if config_error %} data-disabled="true"{% endif %}>
                     <div class="field-group">
                         <label for="username" class="field-label">Username</label>
                         <div class="field-control">
@@ -70,7 +70,7 @@
                         <a href="#" class="forgot-link" id="forgotPasswordLink">Forgot password?</a>
                     </div>
 
-                    <button type="submit" class="login-btn" id="loginBtn">
+                    <button type="submit" class="login-btn" id="loginBtn"{% if config_error %} disabled aria-disabled="true"{% endif %}>
                         <span class="btn-text"><i class="bi bi-lock-fill"></i> Sign In</span>
                         <span class="btn-loading d-none">
                             <span class="spinner-border spinner-border-sm" role="status"></span>

@@ -107,7 +107,8 @@ BOOTSTRAP_DATABASE=MonthEndOrchestrationDB
 BOOTSTRAP_USER=MonthEndApp
 BOOTSTRAP_PASSWORD=MonthEndApp
 
-CONNECTION_SECRET_KEY is optional unless sql_password_hash values are Fernet-encrypted.
+CONNECTION_SECRET_KEY is optional unless sql_password_encrypted values are Fernet-encrypted.
+Do not store one-way hashes in orchestration.app_connections — use dbo.users.password_hash for app logins only.
 """
 
 

@@ -11,6 +11,7 @@ def test_active_connections_query_uses_environment_name():
     assert "connection_name" not in ACTIVE_APP_CONNECTIONS_SQL
     assert "WHERE is_active = 1" in ACTIVE_APP_CONNECTIONS_SQL
     assert "sql_username" in ACTIVE_APP_CONNECTIONS_SQL
+    assert "sql_password_encrypted" in ACTIVE_APP_CONNECTIONS_SQL
     assert "sql_password_hash" in ACTIVE_APP_CONNECTIONS_SQL
 
 

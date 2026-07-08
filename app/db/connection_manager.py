@@ -16,7 +16,11 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Generator, Optional
 
-from app.db.crypto import decrypt_password
+from app.db.credentials import (
+    ConnectionCredentialError,
+    resolve_sql_login_password,
+    stored_credential_from_row,
+)
 from config.settings import should_use_mock_data
 
 if TYPE_CHECKING:
@@ -33,6 +37,7 @@ APP_CONNECTIONS_SELECT = """
         database_name,
         auth_type,
         sql_username,
+        sql_password_encrypted,
         sql_password_hash,
         description,
         created_at,
@@ -42,7 +47,31 @@ APP_CONNECTIONS_SELECT = """
 
 ACTIVE_APP_CONNECTIONS_SQL = f"{APP_CONNECTIONS_SELECT}\n    WHERE is_active = 1"
 
+LEGACY_APP_CONNECTIONS_SELECT = """
+    SELECT
+        connection_id,
+        environment_name,
+        is_active,
+        server_name,
+        database_name,
+        auth_type,
+        sql_username,
+        sql_password_hash,
+        description,
+        created_at,
+        updated_at
+    FROM orchestration.app_connections
+"""
+
+ACTIVE_APP_CONNECTIONS_LEGACY_SQL = (
+    f"{LEGACY_APP_CONNECTIONS_SELECT}\n    WHERE is_active = 1"
+)
+
 APP_CONNECTIONS_REGISTRY_SQL = f"{APP_CONNECTIONS_SELECT}\n    ORDER BY environment_name"
+
+LEGACY_APP_CONNECTIONS_REGISTRY_SQL = (
+    f"{LEGACY_APP_CONNECTIONS_SELECT}\n    ORDER BY environment_name"
+)
 
 
 def _import_pyodbc():
@@ -51,73 +80,23 @@ def _import_pyodbc():
     return pyodbc
 
 
-def _normalize_sql_identifier(value: str | None) -> str:
-    return (value or "").strip().lower()
-
-
-def _matches_bootstrap_target(
-    server_name: str,
-    database_name: str,
-    sql_username: str,
-    config: dict,
-) -> bool:
-    return (
-        _normalize_sql_identifier(server_name)
-        == _normalize_sql_identifier(config.get("BOOTSTRAP_SERVER"))
-        and _normalize_sql_identifier(database_name)
-        == _normalize_sql_identifier(config.get("BOOTSTRAP_DATABASE"))
-        and _normalize_sql_identifier(sql_username)
-        == _normalize_sql_identifier(config.get("BOOTSTRAP_USER"))
-    )
-
-
-def _resolve_sql_password(
-    sql_password_hash: str | None,
-    secret_key: str,
-    *,
-    server_name: str = "",
-    database_name: str = "",
-    sql_username: str = "",
-    config: dict | None = None,
-) -> str:
-    raw = (sql_password_hash or "").strip()
-    if not raw:
-        password = ""
-    elif secret_key:
-        password = decrypt_password(raw, secret_key)
-        if not password:
-            logger.warning(
-                "Could not decrypt sql_password_hash for %s/%s; "
-                "check CONNECTION_SECRET_KEY or store plain text",
-                server_name,
-                database_name,
-            )
-            password = ""
-    else:
-        password = raw
-
-    if password:
-        return password
-
-    if config and _matches_bootstrap_target(
-        server_name, database_name, sql_username, config
-    ):
-        bootstrap_password = config.get("BOOTSTRAP_PASSWORD") or ""
-        if bootstrap_password:
-            logger.info(
-                "Using bootstrap password for %s/%s (%s)",
-                server_name,
-                database_name,
-                sql_username,
-            )
-            return bootstrap_password
-
-    return ""
-
-
 def _uses_integrated_auth(auth_type: str | None) -> bool:
     value = (auth_type or "").strip().upper()
     return value in {"WINDOWS", "INTEGRATED", "SSPI", "NTLM"}
+
+
+def _friendly_sql_error(environment_name: str, exc: Exception) -> ConnectionError:
+    message = str(exc)
+    if "18456" in message or "Login failed" in message:
+        return ConnectionError(
+            f"{environment_name}: SQL Server rejected the login for the configured "
+            "runtime credentials. Update orchestration.app_connections."
+            "sql_password_encrypted with the real SQL login password or Fernet "
+            "ciphertext from scripts/encrypt_password.py."
+        )
+    return ConnectionError(
+        f"{environment_name}: database connection failed. Contact your administrator."
+    )
 
 
 @dataclass
@@ -139,38 +118,85 @@ class ConnectionManager:
     def __init__(self, app_config: dict):
         self._config = app_config
         self._connections: dict[str, AppConnection] = {}
+        self._connection_errors: dict[str, str] = {}
+        self._primary_error: str | None = None
 
     def load_connections(self) -> None:
         rows = self._fetch_app_connections()
         secret_key = self._config.get("CONNECTION_SECRET_KEY", "")
         self._connections = {}
+        self._connection_errors = {}
+        self._primary_error = None
+
         for row in rows:
+            env_name = str(row["environment_name"]).upper()
+            auth_type = (row.get("auth_type") or "sql").strip()
+            sql_username = row.get("sql_username") or ""
+
+            if _uses_integrated_auth(auth_type):
+                password = ""
+            else:
+                try:
+                    password = resolve_sql_login_password(
+                        stored_credential_from_row(row),
+                        secret_key=secret_key,
+                        environment_name=env_name,
+                        server_name=row["server_name"],
+                        database_name=row["database_name"],
+                        sql_username=sql_username,
+                        config=self._config,
+                    )
+                except ConnectionCredentialError as exc:
+                    self._connection_errors[env_name] = str(exc)
+                    password = ""
+
             conn = AppConnection(
                 connection_id=int(row["connection_id"]),
                 environment_name=row["environment_name"],
                 server_name=row["server_name"],
                 database_name=row["database_name"],
-                auth_type=(row.get("auth_type") or "sql").strip(),
-                sql_username=row.get("sql_username") or "",
-                password=_resolve_sql_password(
-                    row.get("sql_password_hash"),
-                    secret_key,
-                    server_name=row["server_name"],
-                    database_name=row["database_name"],
-                    sql_username=row.get("sql_username") or "",
-                    config=self._config,
-                ),
+                auth_type=auth_type,
+                sql_username=sql_username,
+                password=password,
                 description=row.get("description") or "",
                 is_active=True,
                 driver=self._config.get("BOOTSTRAP_DRIVER", "ODBC Driver 18 for SQL Server"),
                 trust_server_certificate=self._config.get("BOOTSTRAP_TRUST_CERT", "yes"),
             )
-            self._connections[conn.environment_name.upper()] = conn
+            self._connections[env_name] = conn
 
         logger.info("Loaded %d active app connection(s)", len(self._connections))
 
+    def validate_primary(self) -> None:
+        """Verify PRIMARY credentials without allowing login when misconfigured."""
+        self._primary_error = None
+        if "PRIMARY" in self._connection_errors:
+            self._primary_error = self._connection_errors["PRIMARY"]
+            return
+        if "PRIMARY" not in self._connections:
+            self._primary_error = (
+                "PRIMARY connection not found or not active in orchestration.app_connections."
+            )
+            return
+        try:
+            self.test_connection("PRIMARY")
+        except ConnectionError as exc:
+            self._primary_error = str(exc)
+        except Exception:
+            logger.exception("PRIMARY connection validation failed")
+            self._primary_error = (
+                "PRIMARY database connection failed. Contact your administrator."
+            )
+
+    def get_primary_error(self) -> str | None:
+        return self._primary_error
+
+    def primary_ready(self) -> bool:
+        return self._primary_error is None and "PRIMARY" in self._connections
+
     def reload(self) -> None:
         self.load_connections()
+        self.validate_primary()
 
     def get(self, environment_name: str) -> Optional[AppConnection]:
         return self._connections.get(environment_name.upper())
@@ -204,18 +230,26 @@ class ConnectionManager:
     @contextmanager
     def connect(self, environment_name: str = "PRIMARY") -> Generator[Any, None, None]:
         pyodbc = _import_pyodbc()
-        conn_info = self.get(environment_name)
+        env_name = environment_name.upper()
+        if env_name in self._connection_errors:
+            raise ConnectionError(self._connection_errors[env_name])
+
+        conn_info = self.get(env_name)
         if not conn_info:
             raise ConnectionError(
                 f"Environment '{environment_name}' not found or not active"
             )
         if not _uses_integrated_auth(conn_info.auth_type) and not conn_info.password:
             raise ConnectionError(
-                f"Environment '{environment_name}' has no SQL password configured. "
-                "Update orchestration.app_connections.sql_password_hash or ensure "
-                "it matches the bootstrap target so BOOTSTRAP_PASSWORD can be used."
+                f"Environment '{environment_name}' has no SQL login password configured."
             )
-        db = pyodbc.connect(self.build_connection_string(conn_info), timeout=30)
+
+        try:
+            db = pyodbc.connect(self.build_connection_string(conn_info), timeout=30)
+        except Exception as exc:
+            if exc.__class__.__module__.startswith("pyodbc"):
+                raise _friendly_sql_error(env_name, exc) from exc
+            raise
         try:
             yield db
         finally:
@@ -256,7 +290,18 @@ class ConnectionManager:
     def _fetch_app_connections(self) -> list[dict[str, Any]]:
         with self.connect_bootstrap() as db:
             cursor = db.cursor()
-            cursor.execute(ACTIVE_APP_CONNECTIONS_SQL)
+            for sql in (ACTIVE_APP_CONNECTIONS_SQL, ACTIVE_APP_CONNECTIONS_LEGACY_SQL):
+                try:
+                    cursor.execute(sql)
+                    break
+                except Exception as exc:
+                    if sql is ACTIVE_APP_CONNECTIONS_LEGACY_SQL:
+                        raise
+                    if "sql_password_encrypted" not in str(exc):
+                        raise
+                    logger.warning(
+                        "sql_password_encrypted column missing; using legacy registry query"
+                    )
             columns = [col[0] for col in cursor.description]
             return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
@@ -274,6 +319,7 @@ def init_connection_manager(app) -> ConnectionManager:
     if app.config.get("BOOTSTRAP_SERVER"):
         try:
             _connection_manager.load_connections()
+            _connection_manager.validate_primary()
         except Exception:
             logger.exception("Failed to load app_connections on startup")
     return _connection_manager
