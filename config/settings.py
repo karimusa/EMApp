@@ -15,13 +15,13 @@ the application ``.env``.
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
-
-from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 _ENV_FILE_PATH: Path | None = None
+_ENV_LINE_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$")
 
 
 def get_env_file_path() -> Path:
@@ -29,17 +29,68 @@ def get_env_file_path() -> Path:
     return BASE_DIR / ".env"
 
 
+def _read_env_file_text(path: Path) -> str:
+    """Read .env text, trying common Windows encodings (UTF-8, UTF-16, BOM)."""
+    for encoding in ("utf-8-sig", "utf-16", "utf-16-le", "utf-16-be", "utf-8", "cp1252"):
+        try:
+            return path.read_text(encoding=encoding)
+        except (UnicodeDecodeError, UnicodeError):
+            continue
+    return path.read_bytes().decode("utf-8", errors="replace")
+
+
+def _parse_dotenv_text(text: str) -> dict[str, str]:
+    """Parse KEY=VALUE lines — matches setup.ps1 Load-DotEnv behavior."""
+    parsed: dict[str, str] = {}
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        match = _ENV_LINE_RE.match(line)
+        if not match:
+            continue
+        name = match.group(1).strip()
+        value = match.group(2).strip()
+        if (
+            len(value) >= 2
+            and value[0] == value[-1]
+            and value[0] in ("'", '"')
+        ):
+            value = value[1:-1]
+        parsed[name] = value
+    return parsed
+
+
+def _parse_dotenv_file(path: Path) -> dict[str, str]:
+    return _parse_dotenv_text(_read_env_file_text(path))
+
+
+def _apply_parsed_env(parsed: dict[str, str]) -> None:
+    """Apply parsed .env values.
+
+    Non-empty file values always win. Empty file values do not wipe non-empty
+    process-environment values (common when .env.example placeholders exist).
+    """
+    for key, file_value in parsed.items():
+        if file_value.strip():
+            os.environ[key] = file_value
+        elif key not in os.environ:
+            os.environ[key] = file_value
+
+
 def load_env_file(*, override: bool = True) -> Path:
     """Load G:\\EM\\.env (project root) into os.environ.
 
-    Uses override=True so values from .env win over empty pre-set environment
-    variables (a common cause of DATA_SOURCE=auto staying in mock mode).
+    Uses a Windows-safe parser (UTF-8/UTF-16/BOM) aligned with setup.ps1
+    Load-DotEnv. The override flag is accepted for API compatibility.
     """
+    del override  # manual parser applies non-empty file values unconditionally
     global _ENV_FILE_PATH
     path = get_env_file_path()
-    if path.is_file():
-        load_dotenv(path, override=override)
     _ENV_FILE_PATH = path
+    if path.is_file():
+        parsed = _parse_dotenv_file(path)
+        _apply_parsed_env(parsed)
     return path
 
 
@@ -95,6 +146,18 @@ def print_config_debug(config: dict) -> None:
     print("BOOTSTRAP_DATABASE =", config.get("BOOTSTRAP_DATABASE"))
     print(".env loaded from =", config.get("ENV_FILE_PATH"))
     print("Runtime connections = orchestration.app_connections (loaded after bootstrap)")
+
+    env_path = Path(config.get("ENV_FILE_PATH") or get_env_file_path())
+    if env_path.is_file() and not (config.get("BOOTSTRAP_SERVER") or "").strip():
+        parsed = _parse_dotenv_file(env_path)
+        file_server = (parsed.get("BOOTSTRAP_SERVER") or "").strip()
+        file_database = (parsed.get("BOOTSTRAP_DATABASE") or "").strip()
+        if file_server or file_database:
+            print("WARNING: bootstrap keys exist in .env file but were not loaded:")
+            print("  .env file BOOTSTRAP_SERVER =", repr(parsed.get("BOOTSTRAP_SERVER", "")))
+            print("  .env file BOOTSTRAP_DATABASE =", repr(parsed.get("BOOTSTRAP_DATABASE", "")))
+        else:
+            print("WARNING: set BOOTSTRAP_SERVER and BOOTSTRAP_DATABASE in .env")
 
 
 def apply_runtime_config(app) -> None:
