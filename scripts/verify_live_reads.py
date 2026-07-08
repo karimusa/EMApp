@@ -95,7 +95,7 @@ def main() -> int:
         conns = cm.all_connections()
         print(f"Loaded {len(conns)} runtime connection(s): {', '.join(conns.keys())}")
         for name, conn in conns.items():
-            print(f"  {name}: {conn.server_name} / {conn.database_name}")
+            print(f"  {name}: {conn.environment_name} -> {conn.server_name} / {conn.database_name}")
 
         print("\nRead-layer checks:")
         _check("dbo.users", lambda: data.get_users())

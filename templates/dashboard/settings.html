@@ -34,7 +34,7 @@
             {% for c in connections %}
             <article class="settings-card {% if c.is_active %}settings-card--active{% endif %}">
                 <div class="settings-card-head">
-                    <h4>{{ c.connection_name }}</h4>
+                    <h4>{{ c.environment_name }}</h4>
                     {% if c.is_active %}
                     <span class="log-badge log-badge--ok">Active</span>
                     {% else %}
@@ -44,9 +44,9 @@
                 <dl class="settings-facts">
                     <div><dt>Server</dt><dd class="mono">{{ c.server_name }}</dd></div>
                     <div><dt>Database</dt><dd class="mono">{{ c.database_name }}</dd></div>
-                    <div><dt>Username</dt><dd class="mono">{{ c.username }}</dd></div>
-                    <div><dt>Driver</dt><dd class="mono">{{ c.driver }}</dd></div>
-                    <div><dt>Trust certificate</dt><dd>{{ c.trust_server_certificate }}</dd></div>
+                    <div><dt>Auth type</dt><dd class="mono">{{ c.auth_type }}</dd></div>
+                    <div><dt>SQL username</dt><dd class="mono">{{ c.sql_username }}</dd></div>
+                    <div><dt>Description</dt><dd>{{ c.description or '—' }}</dd></div>
                     <div><dt>Created</dt><dd class="mono muted">{{ c.created_at }}</dd></div>
                 </dl>
             </article>
@@ -59,7 +59,7 @@
         <dl class="settings-facts settings-facts--inline">
             <div><dt>Version</dt><dd>{{ app_version }}</dd></div>
             <div><dt>Data source</dt><dd>{{ 'Mock (development)' if data_source == 'mock' else data_source }}</dd></div>
-            <div><dt>Active connection</dt><dd class="mono">{{ active_connection.connection_name }} → {{ active_connection.database_name }}</dd></div>
+            <div><dt>Active connection</dt><dd class="mono">{{ active_connection.environment_name }} → {{ active_connection.database_name }}</dd></div>
             <div><dt>Your role</dt><dd>{{ 'Administrator' if nav_is_admin else 'Read Only' }}</dd></div>
         </dl>
     </section>

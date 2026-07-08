@@ -89,8 +89,8 @@ def get_trigger_for_agent_job(job_name: str) -> dict[str, str | None]:
     return trigger_for_job(job_name)
 
 
-def connection_latency_ms(connection_name: str) -> int | None:
-    return _connections.ping_latency_ms(connection_name)
+def connection_latency_ms(environment_name: str) -> int | None:
+    return _connections.ping_latency_ms(environment_name)
 
 
 __all__ = [

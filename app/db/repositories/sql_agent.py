@@ -24,17 +24,17 @@ class SqlAgentRepository:
 
         jobs: list[dict[str, Any]] = []
         manager = get_connection_manager()
-        for conn_name, conn in sorted(manager.all_connections().items()):
+        for env_name, conn in sorted(manager.all_connections().items()):
             try:
-                rows = query_connection(conn_name, f"EXEC {PROC_NAME}")
+                rows = query_connection(env_name, f"EXEC {PROC_NAME}")
                 for row in rows:
-                    jobs.append(self._normalize(row, conn_name, conn.server_name))
+                    jobs.append(self._normalize(row, env_name, conn.server_name))
             except Exception:
-                logger.exception("Failed to load SQL Agent jobs for %s", conn_name)
+                logger.exception("Failed to load SQL Agent jobs for %s", env_name)
         return jobs
 
     def _normalize(
-        self, row: dict[str, Any], connection_name: str, server_name: str
+        self, row: dict[str, Any], environment_name: str, server_name: str
     ) -> dict[str, Any]:
         job_name = row.get("job_name") or ""
         alt_name = row.get("alt_name")
@@ -48,5 +48,5 @@ class SqlAgentRepository:
             "next_run_time": format_agent_job_time(row.get("next_run_time")),
             "is_running": coerce_bool(row.get("is_running")),
             "server_name": server_name,
-            "connection_name": connection_name,
+            "environment_name": environment_name,
         }

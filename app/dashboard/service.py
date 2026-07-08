@@ -106,11 +106,11 @@ class DashboardService:
 
         groups = []
         for conn in self.connections.list_connections():
-            server_jobs = [j for j in jobs if j["connection_name"] == conn["connection_name"]]
+            server_jobs = [j for j in jobs if j["environment_name"] == conn["environment_name"]]
             if server_jobs:
                 groups.append(
                     {
-                        "connection_name": conn["connection_name"],
+                        "environment_name": conn["environment_name"],
                         "server_name": conn["server_name"],
                         "database_name": conn["database_name"],
                         "jobs": server_jobs,
@@ -207,12 +207,12 @@ class DashboardService:
             "metrics": metrics,
             "connections": [
                 {
-                    "connection_name": c["connection_name"],
+                    "environment_name": c["environment_name"],
                     "server_name": c["server_name"],
                     "database_name": c["database_name"],
                     "is_active": c["is_active"],
                     "status": "Connected" if c["is_active"] else "Inactive",
-                    "latency_ms": orchestration_data.connection_latency_ms(c["connection_name"])
+                    "latency_ms": orchestration_data.connection_latency_ms(c["environment_name"])
                     if c["is_active"]
                     else None,
                 }
@@ -234,12 +234,12 @@ class DashboardService:
             connections.append(
                 {
                     "connection_id": conn["connection_id"],
-                    "connection_name": conn["connection_name"],
+                    "environment_name": conn["environment_name"],
                     "server_name": conn["server_name"],
                     "database_name": conn["database_name"],
-                    "username": conn["username"],
-                    "driver": conn["driver"],
-                    "trust_server_certificate": conn["trust_server_certificate"],
+                    "auth_type": conn["auth_type"],
+                    "sql_username": conn["sql_username"],
+                    "description": conn.get("description") or "",
                     "is_active": conn["is_active"],
                     "created_at": conn["created_at"],
                     "updated_at": conn.get("updated_at"),

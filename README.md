@@ -25,7 +25,7 @@ Enterprise month-end orchestration console. UI is frozen; data loads through
    | `BOOTSTRAP_USER` | `MonthEndApp` |
    | `BOOTSTRAP_PASSWORD` | `MonthEndApp` |
 
-   `CONNECTION_SECRET_KEY` — leave blank unless using `password_encrypted` in the database.
+   `CONNECTION_SECRET_KEY` — leave blank unless `sql_password_hash` is Fernet-encrypted in the database.
 
    `.env` contains **only the bootstrap connection**. Runtime SQL connections load from
    `orchestration.app_connections` after bootstrap succeeds.

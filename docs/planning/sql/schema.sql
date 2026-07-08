@@ -29,15 +29,14 @@ IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'app_connections' AND schem
 BEGIN
     CREATE TABLE orchestration.app_connections (
         connection_id              INT IDENTITY(1,1) PRIMARY KEY,
-        connection_name            NVARCHAR(50)  NOT NULL UNIQUE,  -- PRIMARY, REMOTE_SQL
+        environment_name           NVARCHAR(50)  NOT NULL UNIQUE,  -- PRIMARY, REMOTE_SQL
+        is_active                  BIT NOT NULL DEFAULT 1,
         server_name                NVARCHAR(200) NOT NULL,
         database_name              NVARCHAR(200) NOT NULL,
-        username                   NVARCHAR(200) NOT NULL,
-        password_encrypted         NVARCHAR(MAX) NULL,  -- Fernet-encrypted; NOT a login hash
-        password_plain               NVARCHAR(200) NULL,  -- avoid in production; dev only
-        driver                     NVARCHAR(200) NULL DEFAULT 'ODBC Driver 18 for SQL Server',
-        trust_server_certificate   NVARCHAR(10)  NULL DEFAULT 'yes',
-        is_active                  BIT NOT NULL DEFAULT 1,
+        auth_type                  NVARCHAR(50)  NOT NULL DEFAULT 'sql',
+        sql_username               NVARCHAR(200) NULL,
+        sql_password_hash          NVARCHAR(MAX) NULL,
+        description                NVARCHAR(500) NULL,
         created_at                 DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
         updated_at                 DATETIME2 NULL
     );
@@ -150,7 +149,7 @@ BEGIN
     CREATE TABLE orchestration.monitored_agent_jobs (
         job_name        NVARCHAR(200) NOT NULL PRIMARY KEY,
         alt_name        NVARCHAR(200) NULL,
-        connection_name NVARCHAR(50)  NOT NULL
+        environment_name NVARCHAR(50)  NOT NULL
     );
 END;
 GO

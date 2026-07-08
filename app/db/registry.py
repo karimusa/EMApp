@@ -9,7 +9,7 @@ from typing import NamedTuple
 class StepDef(NamedTuple):
     phase_code: str
     step_name: str
-    connection_name: str
+    environment_name: str
     execute_proc: str
     validate_proc: str
     agent_job: str | None = None

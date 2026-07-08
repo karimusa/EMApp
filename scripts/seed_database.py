@@ -125,10 +125,10 @@ def seed(db) -> None:
     for name, server, database, user, password in connections:
         cursor.execute(
             """
-            IF NOT EXISTS (SELECT 1 FROM orchestration.app_connections WHERE connection_name = ?)
+            IF NOT EXISTS (SELECT 1 FROM orchestration.app_connections WHERE environment_name = ?)
             INSERT INTO orchestration.app_connections
-                (connection_name, server_name, database_name, username, password_plain, is_active)
-            VALUES (?, ?, ?, ?, ?, 1)
+                (environment_name, server_name, database_name, auth_type, sql_username, sql_password_hash, is_active)
+            VALUES (?, ?, ?, 'sql', ?, ?, 1)
             """,
             (name, name, server, database, user, password or None),
         )
@@ -150,13 +150,13 @@ def seed(db) -> None:
     order_by_phase: dict[str, int] = {}
     server_cache: dict[str, str] = {}
     for step_id, step in enumerate(STEP_REGISTRY, start=1):
-        if step.connection_name not in server_cache:
+        if step.environment_name not in server_cache:
             cursor.execute(
-                "SELECT server_name FROM orchestration.app_connections WHERE connection_name = ?",
-                (step.connection_name,),
+                "SELECT server_name FROM orchestration.app_connections WHERE environment_name = ?",
+                (step.environment_name,),
             )
             row = cursor.fetchone()
-            server_cache[step.connection_name] = row[0] if row else "unknown"
+            server_cache[step.environment_name] = row[0] if row else "unknown"
         order = order_by_phase.get(step.phase_code, 0) + 1
         order_by_phase[step.phase_code] = order
         cursor.execute(
@@ -173,7 +173,7 @@ def seed(db) -> None:
                 JOB_ID,
                 step.step_name,
                 step.phase_code,
-                server_cache[step.connection_name],
+                server_cache[step.environment_name],
                 order,
                 step.execute_proc,
                 step.validate_proc,
@@ -183,10 +183,10 @@ def seed(db) -> None:
             cursor.execute(
                 """
                 IF NOT EXISTS (SELECT 1 FROM orchestration.monitored_agent_jobs WHERE job_name = ?)
-                INSERT INTO orchestration.monitored_agent_jobs (job_name, connection_name)
+                INSERT INTO orchestration.monitored_agent_jobs (job_name, environment_name)
                 VALUES (?, ?)
                 """,
-                (step.agent_job, step.agent_job, step.connection_name),
+                (step.agent_job, step.agent_job, step.environment_name),
             )
 
     cursor.execute("SET IDENTITY_INSERT orchestration.job_steps OFF")

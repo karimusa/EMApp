@@ -27,18 +27,18 @@ BEGIN
     VALUES (1, N'RRA Month-End Orchestration', N'End-to-end month-end close orchestration.', 1);
 END;
 
-IF NOT EXISTS (SELECT 1 FROM orchestration.app_connections WHERE connection_name = N'PRIMARY')
+IF NOT EXISTS (SELECT 1 FROM orchestration.app_connections WHERE environment_name = N'PRIMARY')
 BEGIN
     INSERT INTO orchestration.app_connections
-        (connection_name, server_name, database_name, username, password_plain, is_active)
-    VALUES (N'PRIMARY', @PrimaryServer, @PrimaryDatabase, @PrimaryUser, @PrimaryPassword, 1);
+        (environment_name, server_name, database_name, auth_type, sql_username, sql_password_hash, is_active)
+    VALUES (N'PRIMARY', @PrimaryServer, @PrimaryDatabase, N'sql', @PrimaryUser, @PrimaryPassword, 1);
 END;
 
-IF NOT EXISTS (SELECT 1 FROM orchestration.app_connections WHERE connection_name = N'REMOTE_SQL')
+IF NOT EXISTS (SELECT 1 FROM orchestration.app_connections WHERE environment_name = N'REMOTE_SQL')
 BEGIN
     INSERT INTO orchestration.app_connections
-        (connection_name, server_name, database_name, username, password_plain, is_active)
-    VALUES (N'REMOTE_SQL', @RemoteServer, @RemoteDatabase, @RemoteUser, @RemotePassword, 1);
+        (environment_name, server_name, database_name, auth_type, sql_username, sql_password_hash, is_active)
+    VALUES (N'REMOTE_SQL', @RemoteServer, @RemoteDatabase, N'sql', @RemoteUser, @RemotePassword, 1);
 END;
 
 IF NOT EXISTS (SELECT 1 FROM orchestration.job_runs WHERE run_id = 42)

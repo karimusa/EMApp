@@ -91,28 +91,26 @@ def get_app_connections() -> list[dict[str, Any]]:
     return [
         {
             "connection_id": 1,
-            "connection_name": "PRIMARY",
+            "environment_name": "PRIMARY",
             "server_name": "mock-primary.local",
             "database_name": "mock_orchestration",
-            "username": "mock_user",
-            "password_encrypted": None,
-            "password_plain": None,
-            "driver": "ODBC Driver 18 for SQL Server",
-            "trust_server_certificate": "yes",
+            "auth_type": "sql",
+            "sql_username": "mock_user",
+            "sql_password_hash": None,
+            "description": "Mock primary environment",
             "is_active": True,
             "created_at": "2025-01-04 09:00:00",
             "updated_at": None,
         },
         {
             "connection_id": 2,
-            "connection_name": "REMOTE_SQL",
+            "environment_name": "REMOTE_SQL",
             "server_name": "mock-remote.local",
             "database_name": "mock_msdb",
-            "username": "mock_agent",
-            "password_encrypted": None,
-            "password_plain": None,
-            "driver": "ODBC Driver 18 for SQL Server",
-            "trust_server_certificate": "yes",
+            "auth_type": "sql",
+            "sql_username": "mock_agent",
+            "sql_password_hash": None,
+            "description": "Mock remote SQL environment",
             "is_active": True,
             "created_at": "2025-01-04 09:00:00",
             "updated_at": None,
@@ -124,15 +122,15 @@ def get_active_connection() -> dict[str, Any]:
     """The active PRIMARY connection (used as the console's data source)."""
     connections = get_app_connections()
     for conn in connections:
-        if conn["connection_name"] == "PRIMARY" and conn["is_active"]:
+        if conn["environment_name"] == "PRIMARY" and conn["is_active"]:
             return conn
     return connections[0]
 
 
-def _server_for(connection_name: str) -> str:
+def _server_for(environment_name: str) -> str:
     """Resolve a server name from ``app_connections`` (never hardcoded)."""
     for conn in get_app_connections():
-        if conn["connection_name"] == connection_name:
+        if conn["environment_name"] == environment_name:
             return conn["server_name"]
     return get_active_connection()["server_name"]
 
@@ -231,7 +229,7 @@ def get_job_steps() -> list[dict[str, Any]]:
                 "job_id": JOB_ID,
                 "step_name": step.step_name,
                 "phase_code": step.phase_code,
-                "server_name": _server_for(step.connection_name),
+                "server_name": _server_for(step.environment_name),
                 "step_order": order,
                 "execute_proc_name": step.execute_proc,
                 "validate_proc_name": step.validate_proc,
@@ -440,7 +438,7 @@ def get_job_runs() -> list[dict[str, Any]]:
 #
 # Only the monitored jobs below are tracked — no unrelated SQL Agent jobs. Job
 # names and the two servers are the only "hardcoded" identifiers, as required.
-# (job_name, connection_name, enabled, last_status, last_run, next_run,
+# (job_name, environment_name, enabled, last_status, last_run, next_run,
 #  running, alt_name)
 # ---------------------------------------------------------------------------
 _MONITORED_JOBS: list[tuple[str, str, bool, str, str, str | None, bool, str | None]] = [
@@ -463,7 +461,7 @@ def get_monitored_agent_jobs() -> list[dict[str, Any]]:
     Server names are resolved from ``app_connections`` (never hardcoded).
     """
     rows: list[dict[str, Any]] = []
-    for name, conn, enabled, status, last_run, next_run, running, alt in _MONITORED_JOBS:
+    for name, environment_name, enabled, status, last_run, next_run, running, alt in _MONITORED_JOBS:
         rows.append(
             {
                 "job_name": name,
@@ -474,8 +472,8 @@ def get_monitored_agent_jobs() -> list[dict[str, Any]]:
                 "last_run_time": last_run,
                 "next_run_time": next_run,
                 "is_running": running,
-                "server_name": _server_for(conn),
-                "connection_name": conn,
+                "server_name": _server_for(environment_name),
+                "environment_name": environment_name,
             }
         )
     return rows

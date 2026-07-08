@@ -30,8 +30,8 @@ def query_primary(sql: str, params: tuple = ()) -> list[dict[str, Any]]:
         return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
 
-def query_connection(connection_name: str, sql: str, params: tuple = ()) -> list[dict[str, Any]]:
-    with get_connection_manager().connect(connection_name) as db:
+def query_connection(environment_name: str, sql: str, params: tuple = ()) -> list[dict[str, Any]]:
+    with get_connection_manager().connect(environment_name) as db:
         cursor = db.cursor()
         cursor.execute(sql, params)
         if not cursor.description:

@@ -8,24 +8,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from app.db.connection_manager import ACTIVE_APP_CONNECTIONS_SQL
 from config.settings import (
     _detect_env_file_encoding,
     _parse_dotenv_file,
     _read_env_file_text,
-    build_runtime_config,
     get_env_file_path,
     load_env_file,
 )
 
-BOOTSTRAP_REGISTRY_PREVIEW_SQL = """
-SELECT
-    connection_id,
-    connection_name,
-    server_name,
-    database_name
-FROM orchestration.app_connections
-WHERE is_active = 1
-"""
+BOOTSTRAP_REGISTRY_PREVIEW_SQL = ACTIVE_APP_CONNECTIONS_SQL
 
 
 @dataclass(frozen=True)
@@ -66,7 +58,7 @@ def _redact_env_line(line: str) -> str:
     if "=" not in line:
         return line
     key, _value = line.split("=", 1)
-    if "PASSWORD" in key.upper():
+    if "PASSWORD" in key.upper() or "SECRET" in key.upper():
         return f"{key}=***"
     return line
 
@@ -115,7 +107,7 @@ BOOTSTRAP_DATABASE=MonthEndOrchestrationDB
 BOOTSTRAP_USER=MonthEndApp
 BOOTSTRAP_PASSWORD=MonthEndApp
 
-CONNECTION_SECRET_KEY is optional unless orchestration.app_connections uses password_encrypted.
+CONNECTION_SECRET_KEY is optional unless sql_password_hash values are Fernet-encrypted.
 """
 
 
@@ -155,10 +147,8 @@ def print_registry_rows(rows: list[dict[str, Any]]) -> None:
         return
     for row in rows:
         print(
-            "  connection_id={connection_id}, connection_name={connection_name}, "
-            "server_name={server_name}, database_name={database_name}".format(
-                connection_id=row.get("connection_id"),
-                connection_name=row.get("connection_name"),
+            "  {environment_name} -> {server_name} / {database_name}".format(
+                environment_name=row.get("environment_name"),
                 server_name=row.get("server_name"),
                 database_name=row.get("database_name"),
             )

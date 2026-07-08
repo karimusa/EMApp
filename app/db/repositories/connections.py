@@ -1,4 +1,4 @@
-"""Connection repository — orchestration.app_connections (database registry)."""
+"""Connection repository — orchestration.app_connections."""
 
 from __future__ import annotations
 
@@ -22,15 +22,15 @@ class ConnectionsRepository:
     def get_active(self) -> dict[str, Any]:
         connections = self.list_connections()
         for conn in connections:
-            if conn["connection_name"] == "PRIMARY" and conn["is_active"]:
+            if conn["environment_name"] == "PRIMARY" and conn["is_active"]:
                 return conn
         return connections[0] if connections else {}
 
-    def ping_latency_ms(self, connection_name: str) -> int | None:
+    def ping_latency_ms(self, environment_name: str) -> int | None:
         if use_mock_data():
             return 12
         try:
-            with get_connection_manager().connect(connection_name) as db:
+            with get_connection_manager().connect(environment_name) as db:
                 cursor = db.cursor()
                 cursor.execute("SELECT 1")
                 cursor.fetchone()
@@ -39,19 +39,18 @@ class ConnectionsRepository:
             return None
 
     def _normalize(self, row: dict[str, Any]) -> dict[str, Any]:
-        encrypted = row.get("password_encrypted")
+        password_hash = row.get("sql_password_hash")
         return {
             "connection_id": row["connection_id"],
-            "connection_name": row["connection_name"],
+            "environment_name": row["environment_name"],
             "server_name": row["server_name"],
             "database_name": row["database_name"],
-            "username": row["username"],
-            "password_encrypted": (
-                "gAAAAAB...redacted" if encrypted else None
+            "auth_type": row.get("auth_type") or "sql",
+            "sql_username": row.get("sql_username") or "",
+            "sql_password_hash": (
+                "gAAAAAB...redacted" if password_hash else None
             ),
-            "password_plain": None,
-            "driver": row.get("driver") or "ODBC Driver 18 for SQL Server",
-            "trust_server_certificate": row.get("trust_server_certificate") or "yes",
+            "description": row.get("description") or "",
             "is_active": coerce_bool(row.get("is_active")),
             "created_at": format_timestamp(row.get("created_at")),
             "updated_at": format_timestamp(row.get("updated_at")),

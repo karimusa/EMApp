@@ -4,7 +4,7 @@ Bootstrap flow
 --------------
 1. Read ``BOOTSTRAP_*`` from ``.env`` (only place server names belong in env).
 2. Connect to MonthEndOrchestrationDB.
-3. SELECT active rows: ``SELECT * FROM orchestration.app_connections WHERE is_active = 1``
+3. SELECT active rows from ``orchestration.app_connections`` (``environment_name`` registry).
 4. Build ODBC connection strings dynamically from those rows.
 5. Repositories call ``connect()`` / ``query_primary()`` / ``query_connection()``.
 """
@@ -24,17 +24,25 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-ACTIVE_APP_CONNECTIONS_SQL = """
-    SELECT *
+APP_CONNECTIONS_SELECT = """
+    SELECT
+        connection_id,
+        environment_name,
+        is_active,
+        server_name,
+        database_name,
+        auth_type,
+        sql_username,
+        sql_password_hash,
+        description,
+        created_at,
+        updated_at
     FROM orchestration.app_connections
-    WHERE is_active = 1
 """
 
-APP_CONNECTIONS_REGISTRY_SQL = """
-    SELECT *
-    FROM orchestration.app_connections
-    ORDER BY connection_name
-"""
+ACTIVE_APP_CONNECTIONS_SQL = f"{APP_CONNECTIONS_SELECT}\n    WHERE is_active = 1"
+
+APP_CONNECTIONS_REGISTRY_SQL = f"{APP_CONNECTIONS_SELECT}\n    ORDER BY environment_name"
 
 
 def _import_pyodbc():
@@ -43,16 +51,34 @@ def _import_pyodbc():
     return pyodbc
 
 
+def _resolve_sql_password(sql_password_hash: str | None, secret_key: str) -> str:
+    raw = (sql_password_hash or "").strip()
+    if not raw:
+        return ""
+    if secret_key:
+        decrypted = decrypt_password(raw, secret_key)
+        if decrypted:
+            return decrypted
+    return raw
+
+
+def _uses_integrated_auth(auth_type: str | None) -> bool:
+    value = (auth_type or "").strip().upper()
+    return value in {"WINDOWS", "INTEGRATED", "SSPI", "NTLM"}
+
+
 @dataclass
 class AppConnection:
     connection_id: int
-    connection_name: str
+    environment_name: str
     server_name: str
     database_name: str
-    username: str
+    auth_type: str
+    sql_username: str
     password: str
-    driver: str
+    description: str
     is_active: bool
+    driver: str
     trust_server_certificate: str = "yes"
 
 
@@ -66,34 +92,28 @@ class ConnectionManager:
         secret_key = self._config.get("CONNECTION_SECRET_KEY", "")
         self._connections = {}
         for row in rows:
-            password = row.get("password_encrypted") or ""
-            if password and secret_key:
-                password = decrypt_password(password, secret_key)
-            elif row.get("password_plain"):
-                password = row["password_plain"]
-            else:
-                password = password or ""
-
             conn = AppConnection(
                 connection_id=int(row["connection_id"]),
-                connection_name=row["connection_name"],
+                environment_name=row["environment_name"],
                 server_name=row["server_name"],
                 database_name=row["database_name"],
-                username=row.get("username") or "",
-                password=password,
-                driver=row.get("driver") or self._config.get("BOOTSTRAP_DRIVER", ""),
+                auth_type=(row.get("auth_type") or "sql").strip(),
+                sql_username=row.get("sql_username") or "",
+                password=_resolve_sql_password(row.get("sql_password_hash"), secret_key),
+                description=row.get("description") or "",
                 is_active=True,
-                trust_server_certificate=row.get("trust_server_certificate") or "yes",
+                driver=self._config.get("BOOTSTRAP_DRIVER", "ODBC Driver 18 for SQL Server"),
+                trust_server_certificate=self._config.get("BOOTSTRAP_TRUST_CERT", "yes"),
             )
-            self._connections[conn.connection_name.upper()] = conn
+            self._connections[conn.environment_name.upper()] = conn
 
         logger.info("Loaded %d active app connection(s)", len(self._connections))
 
     def reload(self) -> None:
         self.load_connections()
 
-    def get(self, connection_name: str) -> Optional[AppConnection]:
-        return self._connections.get(connection_name.upper())
+    def get(self, environment_name: str) -> Optional[AppConnection]:
+        return self._connections.get(environment_name.upper())
 
     def get_primary(self) -> Optional[AppConnection]:
         return self.get("PRIMARY")
@@ -102,23 +122,26 @@ class ConnectionManager:
         return dict(self._connections)
 
     def build_connection_string(self, conn: AppConnection) -> str:
-        return ";".join(
-            [
-                f"DRIVER={{{conn.driver}}}",
-                f"SERVER={conn.server_name}",
-                f"DATABASE={conn.database_name}",
-                f"UID={conn.username}",
-                f"PWD={conn.password}",
-                f"TrustServerCertificate={conn.trust_server_certificate}",
-            ]
-        )
+        parts = [
+            f"DRIVER={{{conn.driver}}}",
+            f"SERVER={conn.server_name}",
+            f"DATABASE={conn.database_name}",
+        ]
+        if _uses_integrated_auth(conn.auth_type):
+            parts.append("Trusted_Connection=yes")
+        else:
+            parts.extend([f"UID={conn.sql_username}", f"PWD={conn.password}"])
+        parts.append(f"TrustServerCertificate={conn.trust_server_certificate}")
+        return ";".join(parts)
 
     @contextmanager
-    def connect(self, connection_name: str = "PRIMARY") -> Generator[Any, None, None]:
+    def connect(self, environment_name: str = "PRIMARY") -> Generator[Any, None, None]:
         pyodbc = _import_pyodbc()
-        conn_info = self.get(connection_name)
+        conn_info = self.get(environment_name)
         if not conn_info:
-            raise ConnectionError(f"Connection '{connection_name}' not found or not active")
+            raise ConnectionError(
+                f"Environment '{environment_name}' not found or not active"
+            )
         db = pyodbc.connect(self.build_connection_string(conn_info), timeout=30)
         try:
             yield db
