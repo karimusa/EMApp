@@ -1,90 +1,65 @@
-# RRA Month-End Orchestration
+# RRA Month-End Orchestration (EMApp)
 
-Enterprise month-end orchestration console for SQL Server. The UI reads through
-`app/dashboard/data.py`, which delegates to SQL repositories when bootstrap
-credentials are configured, or mock data otherwise.
+Enterprise month-end orchestration console. UI is frozen; data loads through
+`app/dashboard/data.py` (SQL repositories with mock fallback for offline/testing).
 
-## Run locally (mock — no SQL Server required)
+## Quick start (Windows — e.g. G:\EM on SDAZ001MLD21)
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python run.py
+```bat
+start.bat
 ```
 
 Open **http://127.0.0.1:50006/login**
 
-## Connect to MonthEndOrchestrationDB
+| User   | Password  | Role     |
+|--------|-----------|----------|
+| admin  | admin123  | Admin    |
+| viewer | viewer123 | ReadOnly |
 
-Copy `.env.example` to `.env` and set:
+## Setup scripts
 
-```bash
-DATA_SOURCE=sql
-BOOTSTRAP_SERVER=SPUS001BDBEXT
-BOOTSTRAP_DATABASE=MonthEndOrchestrationDB
-BOOTSTRAP_USER=svc_orchestration
-BOOTSTRAP_PASSWORD=...
-CONNECTION_SECRET_KEY=...   # Fernet key for app_connections passwords
-```
+| File | Purpose |
+|------|---------|
+| `setup.ps1` | Verify Python, create venv, install packages, check ODBC driver, load `.env` |
+| `start.bat` | Run setup (prepare only) then start the app on port **50006** |
+| `scripts/seed_database.py` | Seed all tables from registry + sample run data |
+| `scripts/verify_live_reads.py` | Confirm live SQL read layer for every screen |
+| `scripts/encrypt_password.py` | Encrypt connection passwords for `app_connections` |
 
-Deploy tables from `docs/planning/sql/schema.sql`, then seed users, connections,
-and job steps. The app loads `orchestration.app_connections` on startup.
+## Database-driven configuration
 
-## Test users (mock `dbo.users`)
+1. Set bootstrap credentials in `.env` (copy from `.env.example`)
+2. Deploy `docs/planning/sql/schema.sql`
+3. Seed: `python scripts/seed_database.py` (set `SEED_*` connection vars in `.env`)
+4. Set `DATA_SOURCE=sql` and restart
 
-| Username | Password   | Role     |
-|----------|------------|----------|
-| admin    | admin123   | Admin    |
-| viewer   | viewer123  | ReadOnly |
+At runtime the app loads **orchestration.app_connections** — server and database
+names are never hardcoded in application code.
 
-## Console pages
-
-| Page | Route | Access |
-|------|-------|--------|
-| Dashboard | `/dashboard` | All signed-in users |
-| Run History | `/run-history` | All signed-in users |
-| SQL Agent Jobs | `/agent-jobs` | All signed-in users |
-| Logs | `/logs` | All signed-in users |
-| Monitoring | `/monitoring` | All signed-in users |
-| Validation | `/validation` | All signed-in users |
-| Reports | `/reports` | Coming Soon (Phase 2) |
-| Settings | `/settings` | All signed-in users (read-only for ReadOnly role) |
-| Users | `/admin/users` | Admin only |
-
-## API (`/api/v1/*`)
-
-JSON endpoints mirror the same view models as the HTML pages for live SQL integration:
-
-- `GET /api/v1/health`
-- `GET /api/v1/me`
-- `GET /api/v1/dashboard`
-- `GET /api/v1/run-history`
-- `GET /api/v1/logs`
-- `GET /api/v1/agent-jobs`
-- `GET /api/v1/monitoring`
-- `GET /api/v1/validation`
-- `GET /api/v1/settings`
-- `GET /api/v1/users` (Admin only)
-
-## Tests
+## Offline / testing
 
 ```bash
-pytest
+pytest                          # 59 tests, mock fallback
+python scripts/verify_live_reads.py   # mock read checks without SQL Server
 ```
 
-## Project structure
+## Project layout
 
 ```
 EMApp/
-├── app/
-│   ├── auth/              # Session auth, role decorators
-│   ├── dashboard/         # View models + mock data contracts
-│   └── routes/            # Pages + REST API
-├── templates/             # Jinja2 console + login
-├── static/                # CSS + JS
-├── docs/planning/sql/     # Schema + stored procedures reference
-└── tests/
+├── app/                  # Flask app, auth, dashboard services, SQL repositories
+├── templates/            # Frozen UI templates
+├── static/               # Frozen CSS/JS
+├── scripts/              # seed, verify, encrypt utilities
+├── docs/planning/sql/    # schema.sql, seed.sql, stored_procedures.sql
+├── setup.ps1             # Windows setup
+├── start.bat             # Windows launcher
+├── run.py                # Application entry point (port 50006)
+└── requirements.txt
 ```
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for the live database integration plan.
+## API
+
+`GET /api/v1/*` — JSON contracts mirror HTML view models (unchanged).
+
+See [docs/ROADMAP.md](docs/ROADMAP.md) for the live SQL integration status.

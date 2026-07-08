@@ -24,10 +24,10 @@ class Config:
     # mock | sql | auto (sql when BOOTSTRAP_SERVER is set, else mock)
     DATA_SOURCE = os.environ.get("DATA_SOURCE", "auto")
 
-    # Bootstrap — reaches MonthEndOrchestrationDB to load orchestration.app_connections
+    # Bootstrap — initial connection to load orchestration.app_connections (set in .env)
     BOOTSTRAP_DRIVER = os.environ.get("BOOTSTRAP_DRIVER", "ODBC Driver 18 for SQL Server")
     BOOTSTRAP_SERVER = os.environ.get("BOOTSTRAP_SERVER", "")
-    BOOTSTRAP_DATABASE = os.environ.get("BOOTSTRAP_DATABASE", "MonthEndOrchestrationDB")
+    BOOTSTRAP_DATABASE = os.environ.get("BOOTSTRAP_DATABASE", "")
     BOOTSTRAP_USER = os.environ.get("BOOTSTRAP_USER", "")
     BOOTSTRAP_PASSWORD = os.environ.get("BOOTSTRAP_PASSWORD", "")
     BOOTSTRAP_TRUST_CERT = os.environ.get("BOOTSTRAP_TRUST_CERT", "yes")

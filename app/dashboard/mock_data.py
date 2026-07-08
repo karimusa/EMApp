@@ -26,7 +26,7 @@ from typing import Any
 
 from werkzeug.security import generate_password_hash
 
-from app.db.registry import PHASES, STEP_REGISTRY, StepDef, job_key
+from app.db.registry import PHASES, STEP_REGISTRY, job_key
 
 JOB_ID = 1
 RUN_ID = 42
@@ -87,15 +87,15 @@ def get_users() -> list[dict[str, Any]]:
 # orchestration.app_connections  (the only place server/db names live)
 # ---------------------------------------------------------------------------
 def get_app_connections() -> list[dict[str, Any]]:
-    """Rows shaped like ``orchestration.app_connections``."""
+    """Offline mock rows — generic hostnames; live values come from orchestration.app_connections."""
     return [
         {
             "connection_id": 1,
             "connection_name": "PRIMARY",
-            "server_name": "SPUS001BDBEXT",
-            "database_name": "MonthEndOrchestrationDB",
-            "username": "svc_orchestration",
-            "password_encrypted": "gAAAAAB...redacted",
+            "server_name": "mock-primary.local",
+            "database_name": "mock_orchestration",
+            "username": "mock_user",
+            "password_encrypted": None,
             "password_plain": None,
             "driver": "ODBC Driver 18 for SQL Server",
             "trust_server_certificate": "yes",
@@ -106,10 +106,10 @@ def get_app_connections() -> list[dict[str, Any]]:
         {
             "connection_id": 2,
             "connection_name": "REMOTE_SQL",
-            "server_name": "SPAZ001EDM10",
-            "database_name": "msdb",
-            "username": "svc_agent",
-            "password_encrypted": "gAAAAAB...redacted",
+            "server_name": "mock-remote.local",
+            "database_name": "mock_msdb",
+            "username": "mock_agent",
+            "password_encrypted": None,
             "password_plain": None,
             "driver": "ODBC Driver 18 for SQL Server",
             "trust_server_certificate": "yes",

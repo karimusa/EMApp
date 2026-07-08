@@ -1,5 +1,5 @@
 -- MonthEndOrchestrationDB reference schema
--- Source of truth: MonthEndOrchestrationDB on SPUS001BDBEXT
+-- Deploy on your SQL Server instance, then seed with scripts/seed_database.py
 
 -- ============================================================
 -- dbo.users — application authentication
@@ -44,9 +44,7 @@ BEGIN
 END;
 GO
 
--- Seed connections (encrypt passwords via app utility before production use)
--- PRIMARY  -> SPUS001BDBEXT -> MonthEndOrchestrationDB
--- REMOTE_SQL -> SPAZ001EDM10 -> msdb
+-- Seed connections via scripts/seed_database.py or docs/planning/sql/seed.sql
 
 -- ============================================================
 -- orchestration.job_steps — dashboard step definitions

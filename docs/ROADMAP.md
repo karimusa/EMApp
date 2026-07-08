@@ -1,31 +1,30 @@
 # Build Roadmap
 
-## Completed — Production-ready UI (mock data)
+## Completed
 
-- Enterprise login with loading, error, and validation states
-- Operations console shell with consistent navigation
-- Dashboard with phases, step cards, filters, modals
-- Run History, Logs, Monitoring, Validation, Settings pages
-- SQL Agent Jobs page (5 monitored jobs)
-- Users admin page (Admin only)
-- Reports page marked **Coming Soon — Phase 2**
-- REST API (`/api/v1/*`) with data contracts matching `MonthEndOrchestrationDB`
-- Admin vs ReadOnly permissions (execution controls hidden for ReadOnly)
-- Mock data shaped like all 8 schema tables in `docs/planning/sql/schema.sql`
+- Frozen enterprise UI (templates, CSS, JS, navigation)
+- SQL repository layer (`app/db/repositories/*`) with mock fallback
+- `/api/v1/*` JSON contracts
+- `setup.ps1` + `start.bat` for Windows deployment (port 50006)
+- `scripts/seed_database.py` + `docs/planning/sql/seed.sql`
+- `scripts/verify_live_reads.py` — confirm read layer per screen
 
-## Next — Live SQL Server (in progress)
+## Live SQL deployment
 
-Repositories in `app/db/repositories/` read MonthEndOrchestrationDB when `DATA_SOURCE=sql`
-(or `DATA_SOURCE=auto` with bootstrap env vars set). Mock data remains the offline/test fallback.
+1. Copy project to target path (e.g. `G:\EM` on SDAZ001MLD21)
+2. Run `start.bat` (or `setup.ps1 -PrepareOnly` then `python run.py`)
+3. Configure `.env` bootstrap + `SEED_*` connection variables
+4. Deploy `docs/planning/sql/schema.sql`
+5. Run `python scripts/seed_database.py`
+6. Set `DATA_SOURCE=sql` and run `python scripts/verify_live_reads.py`
+7. Confirm screens: login, dashboard, run-history, agent-jobs, logs, users, monitoring, validation, settings
 
-1. Set bootstrap env vars in `.env` (see `.env.example`)
-2. Deploy schema from `docs/planning/sql/schema.sql`
-3. Seed `dbo.users`, `orchestration.app_connections`, `orchestration.job_steps`
-4. Wire step execution via stored procedures (Run/Validate buttons)
+Runtime server/database names come from **orchestration.app_connections** only.
 
-## Later
+## Not yet wired (next phase)
 
-- User mutations (CRUD on `dbo.users`)
-- Reports — Phase 2 executive exports
+- Run / Validate / Start New Run (stored procedures)
+- Admin user CRUD mutations
+- Reports page (Coming Soon — Phase 2)
 
 Design references: `docs/planning/sql/`
