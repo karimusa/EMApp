@@ -43,6 +43,84 @@ class UserRepository:
     def verify_password(self, user: dict[str, Any], password: str) -> bool:
         return verify_user_password_hash(user.get("password_hash"), password)
 
+    def get_by_id(self, user_id: int) -> Optional[dict[str, Any]]:
+        columns = ", ".join(USERS_COLUMNS)
+        rows = query_primary(
+            f"""
+            SELECT {columns}
+            FROM dbo.users
+            WHERE user_id = ?
+            """,
+            (user_id,),
+        )
+        return normalize_user_row(rows[0]) if rows else None
+
+    def create_user(
+        self,
+        *,
+        username: str,
+        password: str,
+        role: str,
+        display_name: str | None = None,
+        email: str | None = None,
+    ) -> dict[str, Any]:
+        display = (display_name or username).strip()
+        email_value = (email or "").strip()
+        exec_primary(
+            """
+            INSERT INTO dbo.users (username, password_hash, role, display_name, email, is_active)
+            VALUES (?, ?, ?, ?, ?, 1)
+            """,
+            (
+                username.strip(),
+                generate_password_hash(password),
+                role,
+                display,
+                email_value or None,
+            ),
+        )
+        created = self.get_by_username(username)
+        if not created:
+            raise RuntimeError("User was created but could not be reloaded.")
+        return {k: v for k, v in created.items() if k != "password_hash"}
+
+    def update_profile(
+        self,
+        user_id: int,
+        *,
+        display_name: str,
+        email: str,
+    ) -> None:
+        exec_primary(
+            """
+            UPDATE dbo.users
+            SET display_name = ?,
+                email = ?
+            WHERE user_id = ?
+            """,
+            (display_name.strip(), email.strip() or None, user_id),
+        )
+
+    def update_role(self, user_id: int, role: str) -> None:
+        exec_primary(
+            """
+            UPDATE dbo.users
+            SET role = ?
+            WHERE user_id = ?
+            """,
+            (role, user_id),
+        )
+
+    def set_active(self, user_id: int, is_active: bool) -> None:
+        exec_primary(
+            """
+            UPDATE dbo.users
+            SET is_active = ?
+            WHERE user_id = ?
+            """,
+            (1 if is_active else 0, user_id),
+        )
+
     def upgrade_password_hash(self, user_id: int, password: str) -> None:
         exec_primary(
             """
