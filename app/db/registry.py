@@ -107,5 +107,21 @@ def agent_job_for_proc(execute_proc: str) -> str | None:
     return _AGENT_BY_PROC.get(execute_proc)
 
 
+def environment_for_command(command: str) -> str:
+    text = (command or "").strip()
+    for step in STEP_REGISTRY:
+        if step.execute_proc == text:
+            return step.environment_name
+    return "PRIMARY"
+
+
+def registry_step_for_command(command: str) -> StepDef | None:
+    text = (command or "").strip()
+    for step in STEP_REGISTRY:
+        if step.execute_proc == text:
+            return step
+    return None
+
+
 def trigger_for_job(job_name: str) -> dict[str, str | None]:
     return _TRIGGER_BY_JOB.get(job_name, {})

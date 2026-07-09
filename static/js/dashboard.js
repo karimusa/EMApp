@@ -18,6 +18,10 @@
     const emptyState = document.getElementById("stepsEmpty");
 
     const LIVE_DB_MSG = window.rraLiveDbMessage || "This action requires a live connection to MonthEndOrchestrationDB.";
+    const dashCfg = window.rraDashboard || {};
+    const live = Boolean(dashCfg.liveDbAvailable);
+    let activeRunId = dashCfg.activeRunId || null;
+    const apiBase = dashCfg.apiBase || "/api/v1";
 
     // ---- Toast helper (shared with other console pages) ----
     let stack = document.querySelector(".toast-stack");
@@ -26,9 +30,9 @@
         stack.className = "toast-stack";
         document.body.appendChild(stack);
     }
-    function toast(message) {
+    function toast(message, tone) {
         if (window.rraToast) {
-            window.rraToast(message);
+            window.rraToast(message, tone);
             return;
         }
         const el = document.createElement("div");
@@ -42,6 +46,62 @@
         }, 3200);
     }
     window.rraToast = toast;
+
+    function reasonMessage(payload, fallback) {
+        if (!payload) return fallback;
+        if (payload.reason === "live_connection_unavailable") return payload.error || "Live connection unavailable.";
+        if (payload.reason === "permission_denied") return "Permission denied.";
+        if (payload.reason === "validation_error") return payload.error || "Validation failed.";
+        if (payload.reason === "database_connection_failed") return payload.error || "Database connection failed.";
+        if (payload.reason === "execution_failed") return payload.error || "Execution failed.";
+        return payload.error || fallback;
+    }
+
+    function guardLive() {
+        if (!live) {
+            toast(dashCfg.liveUnavailableMessage || LIVE_DB_MSG, "error");
+            return false;
+        }
+        return true;
+    }
+
+    async function apiRequest(method, path, body) {
+        const opts = {
+            method: method,
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            credentials: "same-origin",
+        };
+        if (body !== undefined) opts.body = JSON.stringify(body);
+        const response = await fetch(path, opts);
+        let payload = null;
+        try { payload = await response.json(); } catch (err) { payload = null; }
+        if (!response.ok) {
+            throw new Error(reasonMessage(payload, "Request failed (" + response.status + ")."));
+        }
+        return payload;
+    }
+
+    function reloadAfterSuccess(message) {
+        toast(message, "success");
+        window.setTimeout(function () { window.location.reload(); }, 500);
+    }
+
+    async function runStep(stepId) {
+        const payload = await apiRequest("POST", apiBase + "/steps/" + stepId + "/run", {
+            run_id: activeRunId,
+        });
+        if (payload && payload.step && payload.step.run_id) {
+            activeRunId = payload.step.run_id;
+        }
+        reloadAfterSuccess("Step executed.");
+    }
+
+    async function validateStep(stepId) {
+        await apiRequest("POST", apiBase + "/steps/" + stepId + "/validate", {
+            run_id: activeRunId,
+        });
+        reloadAfterSuccess("Step validated.");
+    }
 
     // ---- Filtering (scoped to the active phase panel) ----
     function activePanel() {
@@ -147,10 +207,12 @@
 
     // ---- Step detail modal ----
     const stepModal = document.getElementById("stepModal");
+    let activeStepId = null;
     let activeStepName = null;
 
     function openStepModal(card) {
         if (!stepModal) return;
+        activeStepId = Number(card.dataset.stepId);
         activeStepName = card.dataset.stepName;
         setText("stepModalOrder", card.dataset.order);
         setText("stepModalTitle", card.dataset.stepName);
@@ -216,8 +278,18 @@
 
     const modalRun = document.getElementById("stepModalRun");
     const modalValidate = document.getElementById("stepModalValidate");
-    if (modalRun) modalRun.addEventListener("click", () => toast(LIVE_DB_MSG));
-    if (modalValidate) modalValidate.addEventListener("click", () => toast(LIVE_DB_MSG));
+    if (modalRun) {
+        modalRun.addEventListener("click", function () {
+            if (!guardLive() || !activeStepId) return;
+            runStep(activeStepId).catch(function (err) { toast(err.message, "error"); });
+        });
+    }
+    if (modalValidate) {
+        modalValidate.addEventListener("click", function () {
+            if (!guardLive() || !activeStepId) return;
+            validateStep(activeStepId).catch(function (err) { toast(err.message, "error"); });
+        });
+    }
 
     // ---- Full log modal ----
     const logModal = document.getElementById("logModal");
@@ -235,17 +307,72 @@
 
     // ---- Sidebar toggle handled in console.js ----
 
-    // ---- Action buttons (require live DB) ----
+    // ---- Action buttons ----
     document.querySelectorAll(".btn-run").forEach(function (btn) {
         if (btn.id === "stepModalRun") return;
-        btn.addEventListener("click", () => toast(LIVE_DB_MSG));
+        btn.addEventListener("click", function (event) {
+            event.stopPropagation();
+            if (!guardLive() || btn.disabled) return;
+            const stepId = Number(btn.dataset.stepId);
+            if (!stepId) return;
+            runStep(stepId).catch(function (err) { toast(err.message, "error"); });
+        });
     });
     document.querySelectorAll(".btn-validate").forEach(function (btn) {
         if (btn.id === "stepModalValidate") return;
-        btn.addEventListener("click", () => toast(LIVE_DB_MSG));
+        btn.addEventListener("click", function (event) {
+            event.stopPropagation();
+            if (!guardLive() || btn.disabled) return;
+            const stepId = Number(btn.dataset.stepId);
+            if (!stepId) return;
+            validateStep(stepId).catch(function (err) { toast(err.message, "error"); });
+        });
     });
+
     const startBtn = document.getElementById("startRunBtn");
-    if (startBtn) startBtn.addEventListener("click", () => toast(LIVE_DB_MSG));
+    if (startBtn) {
+        startBtn.addEventListener("click", function () {
+            if (!guardLive() || startBtn.disabled) return;
+            apiRequest("POST", apiBase + "/runs", {})
+                .then(function (payload) {
+                    if (payload && payload.run && payload.run.run_id) {
+                        activeRunId = payload.run.run_id;
+                    }
+                    reloadAfterSuccess("New run started.");
+                })
+                .catch(function (err) { toast(err.message, "error"); });
+        });
+    }
+
+    const stopBtn = document.getElementById("stopRunBtn");
+    if (stopBtn) {
+        stopBtn.addEventListener("click", function () {
+            if (!guardLive() || stopBtn.disabled || !activeRunId) return;
+            apiRequest("POST", apiBase + "/runs/" + activeRunId + "/stop", {})
+                .then(function () { reloadAfterSuccess("Run stopped."); })
+                .catch(function (err) { toast(err.message, "error"); });
+        });
+    }
+
+    const sequenceBtn = document.getElementById("runSequenceBtn");
+    if (sequenceBtn) {
+        sequenceBtn.addEventListener("click", function () {
+            if (!guardLive() || sequenceBtn.disabled) return;
+            apiRequest("POST", apiBase + "/runs/sequence", { run_id: activeRunId })
+                .then(function (payload) {
+                    const seq = payload && payload.sequence;
+                    if (seq && seq.completed) {
+                        reloadAfterSuccess("Sequence completed (" + seq.executed_count + " step(s)).");
+                    } else if (seq && seq.stopped_on_step_name) {
+                        toast("Sequence stopped on " + seq.stopped_on_step_name + ": " + (seq.error || "Step failed."), "error");
+                        window.setTimeout(function () { window.location.reload(); }, 900);
+                    } else {
+                        reloadAfterSuccess("Sequence finished.");
+                    }
+                })
+                .catch(function (err) { toast(err.message, "error"); });
+        });
+    }
 
     // ---- Restore persisted preferences ----
     let savedPhase = null;

@@ -26,11 +26,35 @@
             {{ status_pill(run.status) }}
         </div>
         {% if nav_is_admin %}
-        <button class="btn-primary" type="button" id="startRunBtn">
-            <i class="bi bi-play-fill"></i> Start New Run
-        </button>
+        <div class="dashboard-run-actions">
+            <button class="btn-stop" type="button" id="stopRunBtn"
+                    {% if not live_db_available or not can_stop_run %}disabled{% endif %}
+                    title="{% if not live_db_available %}Live SQL connection required{% elif not can_stop_run %}No active run to stop{% else %}Stop the current run{% endif %}">
+                <i class="bi bi-stop-fill"></i> Stop Run
+            </button>
+            <button class="btn-sequence" type="button" id="runSequenceBtn"
+                    {% if not live_db_available or not can_run_sequence %}disabled{% endif %}
+                    title="{% if not live_db_available %}Live SQL connection required{% elif not can_run_sequence %}Start a run first{% else %}Run pending steps in sequence{% endif %}">
+                <i class="bi bi-collection-play-fill"></i> Run Sequence
+            </button>
+            <button class="btn-primary" type="button" id="startRunBtn"
+                    {% if not live_db_available %}disabled{% endif %}
+                    title="{% if not live_db_available %}Live SQL connection required{% else %}Start a new month-end run{% endif %}">
+                <i class="bi bi-play-fill"></i> Start New Run
+            </button>
+        </div>
         {% endif %}
     </div>
+
+    {% if not live_db_available %}
+    <div class="page-banner page-banner--warn" role="status">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <div>
+            <strong>Execution controls are disabled.</strong>
+            <span>Validate the PRIMARY connection to MonthEndOrchestrationDB in Settings to enable Start, Stop, Sequence, Run, and Validate.</span>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Summary cards (orchestration.run_metrics) -->
     <section class="stat-grid">
@@ -111,7 +135,7 @@
     <section class="phase-panel {% if not loop.first %}d-none{% endif %}" data-phase-panel="{{ phase.key }}">
         <div class="step-grid" data-layout="grid">
             {% for step in phase.steps %}
-            {{ step_card(step, nav_is_admin) }}
+            {{ step_card(step, nav_is_admin, live_db_available) }}
             {% endfor %}
         </div>
     </section>
@@ -276,5 +300,13 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+    window.rraDashboard = {
+        liveDbAvailable: {{ 'true' if live_db_available else 'false' }},
+        activeRunId: {{ active_run_id or 'null' }},
+        apiBase: {{ url_for('api.dashboard')|tojson }}.replace('/dashboard', ''),
+        liveUnavailableMessage: "Live SQL connection unavailable. Validate PRIMARY in Settings before running steps."
+    };
+</script>
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 {% endblock %}

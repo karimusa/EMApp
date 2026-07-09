@@ -8,12 +8,15 @@ from flask import Blueprint, jsonify, request, session
 from app.admin.errors import LiveDataRequiredError, UserAdminError
 from app.auth.decorators import login_required
 from app.auth.service import AuthService
+from app.dashboard.errors import ExecutionError, LiveExecutionRequiredError
+from app.dashboard.execution import ExecutionService
 from app.dashboard.service import DashboardService
 from app.db.repositories.base import use_mock_data
 
 api_bp = Blueprint("api", __name__, url_prefix="/api/v1")
 dashboard_service = DashboardService()
 auth_service = AuthService()
+execution_service = ExecutionService()
 
 
 def _require_admin():
@@ -30,6 +33,121 @@ def _user_admin_error_response(exc: Exception):
     if isinstance(exc, ConnectionError):
         return jsonify({"error": str(exc), "reason": "database_connection_failed"}), 503
     return jsonify({"error": str(exc), "reason": "database_write_failed"}), 500
+
+
+def _execution_error_response(exc: Exception):
+    if isinstance(exc, LiveExecutionRequiredError):
+        return jsonify({"error": str(exc), "reason": "live_connection_unavailable"}), 503
+    if isinstance(exc, ExecutionError):
+        return jsonify({"error": str(exc), "reason": "validation_error"}), 400
+    if isinstance(exc, ConnectionError):
+        return jsonify({"error": str(exc), "reason": "database_connection_failed"}), 503
+    return jsonify({"error": str(exc), "reason": "execution_failed"}), 500
+
+
+@api_bp.route("/execution/state")
+@login_required
+def execution_state():
+    denied = _require_admin()
+    if denied:
+        return denied
+    return jsonify(execution_service.get_execution_state())
+
+
+@api_bp.route("/runs", methods=["POST"])
+@login_required
+def start_run():
+    denied = _require_admin()
+    if denied:
+        return denied
+    payload = request.get_json(silent=True) or {}
+    try:
+        result = execution_service.start_run(
+            actor=session.get("username") or "admin",
+            run_name=payload.get("run_name"),
+        )
+        return jsonify({"run": result, "data_source": "live"}), 201
+    except (LiveExecutionRequiredError, ExecutionError, ConnectionError) as exc:
+        return _execution_error_response(exc)
+    except Exception as exc:
+        return _execution_error_response(exc)
+
+
+@api_bp.route("/runs/<int:run_id>/stop", methods=["POST"])
+@login_required
+def stop_run(run_id: int):
+    denied = _require_admin()
+    if denied:
+        return denied
+    try:
+        result = execution_service.stop_run(
+            run_id=run_id,
+            actor=session.get("username") or "admin",
+        )
+        return jsonify({"run": result, "data_source": "live"})
+    except (LiveExecutionRequiredError, ExecutionError, ConnectionError) as exc:
+        return _execution_error_response(exc)
+    except Exception as exc:
+        return _execution_error_response(exc)
+
+
+@api_bp.route("/runs/sequence", methods=["POST"])
+@login_required
+def run_sequence():
+    denied = _require_admin()
+    if denied:
+        return denied
+    payload = request.get_json(silent=True) or {}
+    try:
+        result = execution_service.run_sequence(
+            run_id=payload.get("run_id"),
+            actor=session.get("username") or "admin",
+        )
+        return jsonify({"sequence": result, "data_source": "live"})
+    except (LiveExecutionRequiredError, ExecutionError, ConnectionError) as exc:
+        return _execution_error_response(exc)
+    except Exception as exc:
+        return _execution_error_response(exc)
+
+
+@api_bp.route("/steps/<int:step_id>/run", methods=["POST"])
+@login_required
+def run_step(step_id: int):
+    denied = _require_admin()
+    if denied:
+        return denied
+    payload = request.get_json(silent=True) or {}
+    try:
+        result = execution_service.run_step(
+            step_id,
+            run_id=payload.get("run_id"),
+            actor=session.get("username") or "admin",
+        )
+        return jsonify({"step": result, "data_source": "live"})
+    except (LiveExecutionRequiredError, ExecutionError, ConnectionError) as exc:
+        return _execution_error_response(exc)
+    except Exception as exc:
+        return _execution_error_response(exc)
+
+
+@api_bp.route("/steps/<int:step_id>/validate", methods=["POST"])
+@login_required
+def validate_step(step_id: int):
+    denied = _require_admin()
+    if denied:
+        return denied
+    payload = request.get_json(silent=True) or {}
+    try:
+        result = execution_service.validate_step(
+            step_id,
+            run_id=payload.get("run_id"),
+            actor=session.get("username") or "admin",
+        )
+        return jsonify({"step": result, "data_source": "live"})
+    except (LiveExecutionRequiredError, ExecutionError, ConnectionError) as exc:
+        return _execution_error_response(exc)
+    except Exception as exc:
+        return _execution_error_response(exc)
 
 
 @api_bp.route("/health")

@@ -65,7 +65,7 @@
     <span class="log-badge log-badge--{{ map.get(status, 'info') }}">{{ status }}</span>
 {% endmacro %}
 
-{% macro step_card(step, is_admin) %}
+{% macro step_card(step, is_admin, live_db_available=True) %}
     <article class="step-card step-card--{{ step.execution_status|lower }}"
              tabindex="0" role="button" aria-label="View details for {{ step.step_name }}"
              data-step-id="{{ step.step_id }}"
@@ -118,10 +118,12 @@
 
         {% if is_admin %}
         <div class="step-actions">
-            <button class="btn-run" type="button" data-step-id="{{ step.step_id }}" data-step-name="{{ step.step_name }}">
+            <button class="btn-run" type="button" data-step-id="{{ step.step_id }}" data-step-name="{{ step.step_name }}"
+                    {% if not live_db_available %}disabled title="Live SQL connection required"{% endif %}>
                 <i class="bi bi-play-fill"></i> Run
             </button>
-            <button class="btn-validate" type="button" data-step-id="{{ step.step_id }}" data-step-name="{{ step.step_name }}">
+            <button class="btn-validate" type="button" data-step-id="{{ step.step_id }}" data-step-name="{{ step.step_name }}"
+                    {% if not live_db_available %}disabled title="Live SQL connection required"{% endif %}>
                 <i class="bi bi-patch-check"></i> Validate
             </button>
         </div>

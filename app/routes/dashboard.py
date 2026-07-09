@@ -8,16 +8,20 @@ live SQL integration step.
 from flask import Blueprint, render_template
 
 from app.auth.decorators import login_required
+from app.dashboard.execution import ExecutionService
 from app.dashboard.service import DashboardService
+from app.db.repositories.base import use_mock_data
 
 dashboard_bp = Blueprint("dashboard", __name__)
 dashboard_service = DashboardService()
+execution_service = ExecutionService()
 
 
 @dashboard_bp.route("/dashboard")
 @login_required
 def index():
     data = dashboard_service.get_dashboard()
+    execution_state = execution_service.get_execution_state()
     return render_template(
         "dashboard/index.html",
         run=data["run"],
@@ -26,6 +30,10 @@ def index():
         execution_log=data["execution_log"],
         run_history=data["run_history"],
         active_connection=data["active_connection"],
+        live_db_available=execution_state["live_db_available"],
+        active_run_id=execution_state["active_run_id"],
+        can_stop_run=execution_state["can_stop"],
+        can_run_sequence=execution_state["can_sequence"],
     )
 
 
