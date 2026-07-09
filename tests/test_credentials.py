@@ -118,6 +118,7 @@ def test_resolve_fernet_requires_secret_key():
         )
 
 
+
 def test_matches_bootstrap_target_case_insensitive():
     assert matches_bootstrap_target(
         "SDAZ001MLD21",

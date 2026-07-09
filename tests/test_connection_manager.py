@@ -73,3 +73,24 @@ def test_primary_hash_blocks_login_when_bootstrap_target_differs():
 
     assert manager.get_primary_error() is not None
     assert "one-way hash" in manager.get_primary_error()
+
+
+def test_is_pyodbc_error_detects_sql_server_login_message():
+    from app.db.connection_manager import is_pyodbc_error
+
+    class FakeDriverError(Exception):
+        __module__ = "builtins"
+
+    exc = FakeDriverError(
+        "('28000', \"[Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'MonthEndApp'. (18456)\")"
+    )
+    assert is_pyodbc_error(exc)
+
+
+def test_ensure_primary_validated_matches_reload_validate_path():
+    manager = ConnectionManager(BOOTSTRAP_CONFIG)
+    with patch.object(manager, "reload") as reload_mock, patch.object(
+        manager, "get_primary_error", return_value=None
+    ):
+        assert manager.ensure_primary_validated(reload_registry=True) is None
+    reload_mock.assert_called_once_with()

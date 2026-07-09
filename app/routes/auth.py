@@ -6,7 +6,11 @@ from flask import Blueprint, redirect, render_template, request, session, url_fo
 
 from app.auth.decorators import login_required
 from app.auth.service import AuthService
-from app.db.connection_manager import get_connection_manager, is_pyodbc_error
+from app.db.connection_manager import (
+    get_connection_manager,
+    is_pyodbc_error,
+    sql_connection_error_message,
+)
 from app.db.repositories.base import use_mock_data
 
 logger = logging.getLogger(__name__)
@@ -23,27 +27,28 @@ def _database_unavailable_message() -> str:
     )
 
 
+def _login_config_error() -> str | None:
+    if use_mock_data():
+        return None
+    try:
+        return get_connection_manager().ensure_primary_validated(reload_registry=True)
+    except RuntimeError:
+        return _database_unavailable_message()
+    except Exception as exc:
+        logger.exception("PRIMARY validation failed during login")
+        if is_pyodbc_error(exc):
+            return sql_connection_error_message("PRIMARY", exc)
+        return str(exc) or _database_unavailable_message()
+
+
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
     if session.get("user_id"):
         return redirect(url_for("dashboard.index"))
 
-    config_error = None
-    if not use_mock_data():
-        try:
-            manager = get_connection_manager()
-            manager.reload()
-            config_error = manager.get_primary_error()
-        except RuntimeError:
-            pass
-        except Exception as exc:
-            logger.exception("PRIMARY validation failed during login")
-            if is_pyodbc_error(exc):
-                config_error = _database_unavailable_message()
-            else:
-                config_error = str(exc) or _database_unavailable_message()
-
+    config_error = _login_config_error()
     error = config_error
+
     if request.method == "POST":
         username = (request.form.get("username") or "").strip()
         password = request.form.get("password") or ""
@@ -59,11 +64,11 @@ def login():
                 logger.exception("Database connection error during login")
                 error = str(exc) or _database_unavailable_message()
             except Exception as exc:
+                logger.exception("Unexpected error during login")
                 if is_pyodbc_error(exc):
-                    logger.exception("SQL error during login")
-                    error = _database_unavailable_message()
+                    error = sql_connection_error_message("PRIMARY", exc)
                 else:
-                    raise
+                    error = _database_unavailable_message()
             else:
                 if not user or not user.get("is_active"):
                     error = "Invalid username or password."

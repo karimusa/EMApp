@@ -85,8 +85,7 @@ def main() -> int:
         app = create_app(DevelopmentConfig)
         with app.app_context():
             cm = init_connection_manager(app)
-            cm.reload()
-            primary_error = cm.get_primary_error()
+            primary_error = cm.ensure_primary_validated(reload_registry=True)
             if primary_error:
                 print(f"FAILED: PRIMARY connection: {primary_error}", file=sys.stderr)
                 hint = _primary_failure_hint(rows)
@@ -134,14 +133,14 @@ def main() -> int:
             return 1
 
         cm = init_connection_manager(app)
-        cm.reload()
+        primary_error = cm.ensure_primary_validated(reload_registry=True)
         conns = cm.all_connections()
         print(f"Loaded {len(conns)} runtime connection(s): {', '.join(conns.keys())}")
         for name, conn in conns.items():
             print(f"  {name}: {conn.environment_name} -> {conn.server_name} / {conn.database_name}")
 
-        if cm.get_primary_error():
-            print(f"FAILED: PRIMARY connection: {cm.get_primary_error()}", file=sys.stderr)
+        if primary_error:
+            print(f"FAILED: PRIMARY connection: {primary_error}", file=sys.stderr)
             return 1
         print("  OK  PRIMARY connection")
 

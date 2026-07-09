@@ -19,6 +19,8 @@ from typing import TYPE_CHECKING, Any, Generator, Optional
 from app.db.credentials import (
     ConnectionCredentialError,
     is_one_way_hash,
+    is_unusable_stored_credential,
+    matches_bootstrap_target,
     resolve_sql_login_password,
     stored_credential_from_row,
 )
@@ -101,7 +103,27 @@ def _friendly_sql_error(environment_name: str, exc: Exception) -> ConnectionErro
 
 
 def is_pyodbc_error(exc: BaseException) -> bool:
-    return exc.__class__.__module__.startswith("pyodbc")
+    module = getattr(exc.__class__, "__module__", "") or ""
+    if module.startswith("pyodbc"):
+        return True
+    if exc.__class__.__name__ in {
+        "InterfaceError",
+        "OperationalError",
+        "ProgrammingError",
+        "DatabaseError",
+        "Error",
+    }:
+        if "pyodbc" in module.lower():
+            return True
+    message = str(exc)
+    return "18456" in message or "[Microsoft][ODBC Driver" in message
+
+
+def sql_connection_error_message(
+    environment_name: str,
+    exc: BaseException,
+) -> str:
+    return str(_friendly_sql_error(environment_name, exc))
 
 
 @dataclass
@@ -229,6 +251,56 @@ class ConnectionManager:
         self.load_connections()
         self.validate_primary()
 
+    def ensure_primary_validated(self, *, reload_registry: bool = True) -> str | None:
+        """Same validation path used by setup.ps1 -TestConnection and /login."""
+        if reload_registry:
+            self.reload()
+        else:
+            self.validate_primary()
+        return self.get_primary_error()
+
+    def _runtime_sql_credentials(
+        self,
+        conn_info: AppConnection,
+        *,
+        environment_name: str,
+    ) -> tuple[str, str]:
+        if _uses_integrated_auth(conn_info.auth_type):
+            return conn_info.sql_username, ""
+
+        bootstrap_user = (self._config.get("BOOTSTRAP_USER") or "").strip()
+        bootstrap_password = (self._config.get("BOOTSTRAP_PASSWORD") or "").strip()
+        sql_username = (conn_info.sql_username or "").strip() or bootstrap_user
+        secret_key = self._config.get("CONNECTION_SECRET_KEY", "")
+
+        if bootstrap_password and matches_bootstrap_target(
+            conn_info.server_name,
+            conn_info.database_name,
+            sql_username,
+            self._config,
+        ) and is_unusable_stored_credential(
+            conn_info.stored_credential,
+            secret_key=secret_key,
+        ):
+            logger.info(
+                "%s: inheriting BOOTSTRAP_PASSWORD because stored credential is unusable",
+                environment_name,
+            )
+            return sql_username, bootstrap_password
+
+        password = self._resolve_runtime_password(
+            environment_name,
+            server_name=conn_info.server_name,
+            database_name=conn_info.database_name,
+            sql_username=sql_username,
+            stored_credential=conn_info.stored_credential,
+        )
+        if is_one_way_hash(password):
+            raise ConnectionError(
+                f"{environment_name}: refusing to connect with a one-way hash as the SQL password."
+            )
+        return sql_username, password
+
     def get(self, environment_name: str) -> Optional[AppConnection]:
         return self._connections.get(environment_name.upper())
 
@@ -243,15 +315,14 @@ class ConnectionManager:
         conn: AppConnection,
         *,
         password: str | None = None,
+        username: str | None = None,
     ) -> str:
+        sql_username = username if username is not None else conn.sql_username
         resolved_password = password
         if resolved_password is None and not _uses_integrated_auth(conn.auth_type):
-            resolved_password = self._resolve_runtime_password(
-                conn.environment_name,
-                server_name=conn.server_name,
-                database_name=conn.database_name,
-                sql_username=conn.sql_username,
-                stored_credential=conn.stored_credential,
+            _, resolved_password = self._runtime_sql_credentials(
+                conn,
+                environment_name=conn.environment_name,
             )
         parts = [
             f"DRIVER={{{conn.driver}}}",
@@ -261,7 +332,7 @@ class ConnectionManager:
         if _uses_integrated_auth(conn.auth_type):
             parts.append("Trusted_Connection=yes")
         else:
-            parts.extend([f"UID={conn.sql_username}", f"PWD={resolved_password or ''}"])
+            parts.extend([f"UID={sql_username}", f"PWD={resolved_password or ''}"])
         parts.append(f"TrustServerCertificate={conn.trust_server_certificate}")
         return ";".join(parts)
 
@@ -286,12 +357,9 @@ class ConnectionManager:
             )
         if not _uses_integrated_auth(conn_info.auth_type):
             try:
-                runtime_password = self._resolve_runtime_password(
-                    env_name,
-                    server_name=conn_info.server_name,
-                    database_name=conn_info.database_name,
-                    sql_username=conn_info.sql_username,
-                    stored_credential=conn_info.stored_credential,
+                runtime_user, runtime_password = self._runtime_sql_credentials(
+                    conn_info,
+                    environment_name=env_name,
                 )
             except ConnectionError:
                 raise
@@ -299,16 +367,17 @@ class ConnectionManager:
                 raise ConnectionError(
                     f"Environment '{environment_name}' has no SQL login password configured."
                 )
-            if is_one_way_hash(runtime_password):
-                raise ConnectionError(
-                    f"{env_name}: refusing to connect with a one-way hash as the SQL password."
-                )
         else:
+            runtime_user = conn_info.sql_username
             runtime_password = None
 
         try:
             db = pyodbc.connect(
-                self.build_connection_string(conn_info, password=runtime_password),
+                self.build_connection_string(
+                    conn_info,
+                    password=runtime_password,
+                    username=runtime_user,
+                ),
                 timeout=30,
             )
         except Exception as exc:
