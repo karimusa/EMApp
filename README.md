@@ -5,6 +5,34 @@ Enterprise month-end orchestration console. UI is frozen; data loads through
 
 ## First run (Windows — e.g. `G:\EM` on `SDAZ001MLD21`)
 
+Fresh clone flow:
+
+```text
+Fresh clone
+    ↓
+setup.ps1
+    ↓
+permission repair (if needed)
+    ↓
+venv
+    ↓
+packages
+    ↓
+bootstrap verification
+    ↓
+run application
+```
+
+On Windows, `setup.ps1` checks whether the current user can write to the project
+root, `.git`, and `logs`. If not (common after cloning to certain drives), it
+offers to run `scripts\fix_permissions.ps1` automatically. You can also run
+repair manually:
+
+```powershell
+cd G:\EM
+powershell -ExecutionPolicy Bypass -File .\setup.ps1 -FixPermissions
+```
+
 1. **Pull and copy the configuration template** (if `.env` is missing or cannot be edited)
 
    ```powershell
@@ -13,8 +41,10 @@ Enterprise month-end orchestration console. UI is frozen; data loads through
    copy .env.example .env
    ```
 
-   `setup.ps1` also creates `.env` from `.env.example` automatically when `.env`
-   is missing. An existing `.env` is never overwritten.
+   Run `setup.ps1` first on a fresh clone so permission repair can run before
+   `git pull` if ACL issues are present. `setup.ps1` also creates `.env` from
+   `.env.example` automatically when `.env` is missing. An existing `.env` is
+   never overwritten.
 
 2. **Bootstrap values in `.env.example`** (production template):
 
@@ -76,7 +106,8 @@ start.bat
 
 | File | Purpose |
 |------|---------|
-| `setup.ps1` | Verify Python, create venv, install packages, check ODBC driver, load `.env` |
+| `setup.ps1` | Verify Python, create venv, install packages, check ODBC driver, load `.env`; optional Windows permission repair |
+| `scripts/fix_permissions.ps1` | Repair Windows ACL/ownership on the project folder (`takeown` + `icacls`) |
 | `start.bat` | Run setup (prepare only) then start the app on port **50006** |
 | `scripts/seed_database.py` | Seed all tables from registry + sample run data |
 | `scripts/verify_live_reads.py` | Confirm live SQL read layer for every screen |
@@ -124,7 +155,7 @@ EMApp/
 ├── app/                  # Flask app, auth, dashboard services, SQL repositories
 ├── templates/            # Frozen UI templates
 ├── static/               # Frozen CSS/JS
-├── scripts/              # seed, verify, encrypt utilities
+├── scripts/              # seed, verify, encrypt, fix_permissions utilities
 ├── docs/planning/sql/    # schema.sql, seed.sql, stored_procedures.sql
 ├── setup.ps1             # Windows setup
 ├── start.bat             # Windows launcher

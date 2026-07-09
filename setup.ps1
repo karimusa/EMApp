@@ -6,6 +6,7 @@ param(
     [int]$Port = 50006,
     [switch]$PrepareOnly,
     [switch]$TestConnection,
+    [switch]$FixPermissions,
     [switch]$Help
 )
 
@@ -18,10 +19,11 @@ function Show-Help {
 EMApp setup - RRA Month-End Orchestration
 
 Usage:
-  .\setup.ps1 [-PrepareOnly] [-TestConnection] [-Port 50006]
+  .\setup.ps1 [-PrepareOnly] [-TestConnection] [-FixPermissions] [-Port 50006]
 
   PrepareOnly     Install/check only; do not start the Flask app
   TestConnection  Verify bootstrap SQL + orchestration.app_connections
+  FixPermissions  Repair Windows ACL/ownership on the project folder and exit
   Port            Default 50006 (EMApp; port 5000 is intentionally avoided)
 
 Deploy path example:
@@ -224,6 +226,151 @@ function Get-PythonLauncher {
     return $null
 }
 
+function Test-IsWindowsPlatform {
+    if ($PSVersionTable.PSPlatform -eq 'Win') {
+        return $true
+    }
+    if ($env:OS -eq 'Windows_NT') {
+        return $true
+    }
+    return $false
+}
+
+function Test-PathWritable {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectRoot
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        if ($Path -eq (Join-Path $ProjectRoot 'logs')) {
+            try {
+                New-Item -ItemType Directory -Path $Path -Force | Out-Null
+            } catch {
+                return $false
+            }
+        } elseif ($Path -eq (Join-Path $ProjectRoot '.git')) {
+            return $false
+        } else {
+            try {
+                New-Item -ItemType Directory -Path $Path -Force | Out-Null
+            } catch {
+                return $false
+            }
+        }
+    }
+
+    $probeName = '.emapp_write_probe_{0}' -f ([guid]::NewGuid().ToString('N'))
+    $probePath = Join-Path -Path $Path -ChildPath $probeName
+
+    try {
+        [System.IO.File]::WriteAllText($probePath, 'ok')
+        Remove-Item -LiteralPath $probePath -Force -ErrorAction Stop
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+function Test-ProjectPermissions {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectRoot
+    )
+
+    $targets = @(
+        $ProjectRoot,
+        (Join-Path $ProjectRoot '.git'),
+        (Join-Path $ProjectRoot 'logs')
+    )
+
+    foreach ($target in $targets) {
+        if (-not (Test-PathWritable -Path $target -ProjectRoot $ProjectRoot)) {
+            return $false
+        }
+    }
+
+    $fetchHead = Join-Path $ProjectRoot '.git\FETCH_HEAD'
+    if (Test-Path -LiteralPath $fetchHead) {
+        try {
+            $stream = [System.IO.File]::Open(
+                $fetchHead,
+                [System.IO.FileMode]::Open,
+                [System.IO.FileAccess]::ReadWrite,
+                [System.IO.FileShare]::None
+            )
+            $stream.Close()
+            $stream.Dispose()
+        } catch {
+            return $false
+        }
+    }
+
+    return $true
+}
+
+function Invoke-ProjectPermissionRepair {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectRoot
+    )
+
+    $fixScript = Join-Path $ProjectRoot 'scripts\fix_permissions.ps1'
+    if (-not (Test-Path -Path $fixScript)) {
+        throw ('ERROR: Permission repair script not found at {0}' -f $fixScript)
+    }
+
+    & $fixScript -ProjectRoot $ProjectRoot
+    if ($LASTEXITCODE -ne 0) {
+        throw ('Permission repair failed with exit code {0}' -f $LASTEXITCODE)
+    }
+}
+
+function Initialize-WindowsPermissions {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectRoot,
+
+        [switch]$RepairOnly
+    )
+
+    if (-not (Test-IsWindowsPlatform)) {
+        if ($RepairOnly) {
+            Write-Host 'FixPermissions is only available on Windows.' -ForegroundColor Yellow
+            exit 0
+        }
+        return
+    }
+
+    if ($RepairOnly) {
+        Write-Host ''
+        Write-Host '[0/6] Repairing Windows permissions...' -ForegroundColor Yellow
+        Invoke-ProjectPermissionRepair -ProjectRoot $ProjectRoot
+        Write-Host '  Permission repair finished successfully.' -ForegroundColor Green
+        exit 0
+    }
+
+    if (Test-ProjectPermissions -ProjectRoot $ProjectRoot) {
+        return
+    }
+
+    Write-Host ''
+    Write-Host 'Windows permission issues detected.' -ForegroundColor Yellow
+    Write-Host ''
+    $response = Read-Host 'Run automatic permission repair? (Y/N)'
+    if ($response -match '^[Yy]$') {
+        Write-Host ''
+        Write-Host 'Running permission repair...' -ForegroundColor Yellow
+        Invoke-ProjectPermissionRepair -ProjectRoot $ProjectRoot
+        Write-Host '  Permission repair complete. Continuing setup...' -ForegroundColor Green
+    } else {
+        Write-Host '  Skipping permission repair. Setup may fail if ACL issues remain.' -ForegroundColor Yellow
+    }
+}
+
 if ($Help) {
     Show-Help
     exit 0
@@ -255,6 +402,8 @@ if (-not (Test-Path -Path $requirementsPath)) {
 if (-not (Test-Path -Path $runScript)) {
     throw ('ERROR: run.py was not found at {0}' -f $runScript)
 }
+
+Initialize-WindowsPermissions -ProjectRoot $ProjectRoot -RepairOnly:$FixPermissions
 
 Write-Host ''
 Write-Host '[1/6] Checking Python...' -ForegroundColor Yellow
