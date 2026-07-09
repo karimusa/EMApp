@@ -24,7 +24,9 @@ REQUIRED_MARKERS: dict[str, list[str]] = {
     "app/db/connection_manager.py": [
         "ensure_primary_validated",
         "_runtime_sql_credentials",
-        "is_unusable_stored_credential",
+        "matches_bootstrap_target",
+        "bootstrap-password-priority-2026-07-09",
+        "matches bootstrap server/database/user",
         "_log_bootstrap_vs_primary",
         "detect_sql_password_encrypted_column",
     ],
