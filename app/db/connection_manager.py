@@ -24,8 +24,8 @@ from app.db.app_connections_schema import (
 )
 from app.db.credentials import (
     ConnectionCredentialError,
+    CredentialResolution,
     is_one_way_hash,
-    is_unusable_stored_credential,
     matches_bootstrap_target,
     resolve_sql_login_password,
     resolve_sql_login_password_with_source,
@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Bump when PRIMARY runtime credential behavior changes (visible in startup logs).
-RUNTIME_CREDENTIAL_BUILD_ID = "live-schema-compat-2026-07-09"
+RUNTIME_CREDENTIAL_BUILD_ID = "bootstrap-password-priority-2026-07-09"
 
 # Backward-compatible exports for tests and callers.
 APP_CONNECTIONS_SELECT = active_app_connections_sql(include_encrypted_password=False).replace(
@@ -274,7 +274,22 @@ class ConnectionManager:
         sql_username: str,
         stored_credential: str | None,
         origin_column: str | None = None,
-    ):
+    ) -> CredentialResolution:
+        bootstrap_user = (self._config.get("BOOTSTRAP_USER") or "").strip()
+        runtime_user = (sql_username or "").strip() or bootstrap_user
+        bootstrap_password = (self._config.get("BOOTSTRAP_PASSWORD") or "").strip()
+        if bootstrap_password and matches_bootstrap_target(
+            server_name,
+            database_name,
+            runtime_user,
+            self._config,
+        ):
+            logger.info(
+                "%s: using BOOTSTRAP_PASSWORD (matches bootstrap server/database/user)",
+                environment_name,
+            )
+            return CredentialResolution(bootstrap_password, "BOOTSTRAP_PASSWORD")
+
         try:
             return resolve_sql_login_password_with_source(
                 stored_credential,
@@ -282,7 +297,7 @@ class ConnectionManager:
                 environment_name=environment_name,
                 server_name=server_name,
                 database_name=database_name,
-                sql_username=sql_username,
+                sql_username=runtime_user,
                 config=self._config,
                 origin_column=origin_column,
                 include_encrypted_password=self.sql_password_encrypted_available,
@@ -370,19 +385,15 @@ class ConnectionManager:
         bootstrap_user = (self._config.get("BOOTSTRAP_USER") or "").strip()
         bootstrap_password = (self._config.get("BOOTSTRAP_PASSWORD") or "").strip()
         sql_username = (conn_info.sql_username or "").strip() or bootstrap_user
-        secret_key = self._config.get("CONNECTION_SECRET_KEY", "")
 
         if bootstrap_password and matches_bootstrap_target(
             conn_info.server_name,
             conn_info.database_name,
             sql_username,
             self._config,
-        ) and is_unusable_stored_credential(
-            conn_info.stored_credential,
-            secret_key=secret_key,
         ):
             logger.info(
-                "%s: inheriting BOOTSTRAP_PASSWORD because stored credential is unusable",
+                "%s: using BOOTSTRAP_PASSWORD (matches bootstrap server/database/user)",
                 environment_name,
             )
             return sql_username, bootstrap_password, "BOOTSTRAP_PASSWORD"

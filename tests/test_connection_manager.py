@@ -70,6 +70,43 @@ def test_primary_hash_connects_with_bootstrap_password():
     assert USER_SHA256 not in connection_string
 
 
+def test_primary_hash_resolves_bootstrap_password_source():
+    manager = ConnectionManager(BOOTSTRAP_CONFIG)
+    with patch.object(manager, "_fetch_app_connections", return_value=[PRIMARY_ROW]):
+        manager.load_connections()
+
+    primary = manager.get_primary()
+    assert primary is not None
+
+    _user, _password, password_source = manager._runtime_sql_credentials(
+        primary,
+        environment_name="PRIMARY",
+    )
+    assert password_source == "BOOTSTRAP_PASSWORD"
+
+
+def test_primary_hash_connect_logs_matching_password_source(caplog):
+    manager = ConnectionManager(BOOTSTRAP_CONFIG)
+    mock_db = MagicMock()
+    mock_cursor = MagicMock()
+    mock_db.cursor.return_value = mock_cursor
+    mock_cursor.description = [("x",)]
+
+    with patch("app.db.connection_manager._import_pyodbc") as import_pyodbc, patch.object(
+        manager, "_fetch_app_connections", return_value=[PRIMARY_ROW]
+    ), caplog.at_level(logging.INFO):
+        pyodbc = import_pyodbc.return_value
+        pyodbc.connect.return_value = mock_db
+        manager.reload()
+        with manager.connect("PRIMARY"):
+            pass
+
+    messages = "\n".join(record.message for record in caplog.records)
+    assert "MATCH PasswordSource:" in messages
+    assert "BOOTSTRAP_PASSWORD" in messages
+    assert "DIFF  PasswordSource:" not in messages
+
+
 def test_primary_hash_blocks_login_when_bootstrap_target_differs():
     row = dict(PRIMARY_ROW)
     row["server_name"] = "OTHER-SERVER"
