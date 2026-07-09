@@ -11,6 +11,7 @@ Requires bootstrap credentials in .env and seeded MonthEndOrchestrationDB tables
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
@@ -62,6 +63,13 @@ def _check(label: str, fn) -> None:
     print(f"  OK  {label}")
 
 
+def _quiet_cli_logging() -> None:
+    """Keep Flask/Python INFO logs off stderr during setup.ps1 -TestConnection."""
+    logging.getLogger().setLevel(logging.WARNING)
+    for logger_name in ("werkzeug", "flask", "flask.app"):
+        logging.getLogger(logger_name).setLevel(logging.WARNING)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verify EMApp live SQL reads")
     parser.add_argument(
@@ -70,6 +78,7 @@ def main() -> int:
         help="Only test bootstrap + orchestration.app_connections",
     )
     args = parser.parse_args()
+    _quiet_cli_logging()
 
     load_env_file()
 
@@ -93,6 +102,7 @@ def main() -> int:
                     print(hint, file=sys.stderr)
                 return 1
             print("PRIMARY connection: SUCCESS")
+        print("\nConnection test: SUCCESS")
         return 0
 
     bootstrap = print_bootstrap_validation()
