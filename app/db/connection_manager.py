@@ -31,6 +31,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Bump when PRIMARY runtime credential behavior changes (visible in startup logs).
+RUNTIME_CREDENTIAL_BUILD_ID = "primary-bootstrap-fallback-2026-07-09"
+
 APP_CONNECTIONS_SELECT = """
     SELECT
         connection_id,
@@ -459,6 +462,9 @@ def init_connection_manager(app) -> ConnectionManager:
             _connection_manager.validate_primary()
         except Exception:
             logger.exception("Failed to validate PRIMARY connection on startup")
+        logger.info(
+            "ConnectionManager ready (%s)", RUNTIME_CREDENTIAL_BUILD_ID
+        )
     return _connection_manager
 
 

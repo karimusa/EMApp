@@ -201,6 +201,7 @@ $requirementsPath = Join-Path $ProjectRoot 'requirements.txt'
 $envFile = Join-Path $ProjectRoot '.env'
 $exampleEnv = Join-Path $ProjectRoot '.env.example'
 $verifyScript = Join-Path $ProjectRoot 'scripts\verify_live_reads.py'
+$deployCheckScript = Join-Path $ProjectRoot 'scripts\verify_deployed_code.py'
 $runScript = Join-Path $ProjectRoot 'run.py'
 
 if (-not (Test-Path -Path $requirementsPath)) {
@@ -291,7 +292,13 @@ if (-not $env:FLASK_ENV) {
 if ($TestConnection) {
     Test-BootstrapConfiguration -EnvFilePath $envFile
     Write-Host ''
-    Write-Host '[6/6] Testing database connection...' -ForegroundColor Yellow
+    Write-Host '[6/7] Verifying deployed application code...' -ForegroundColor Yellow
+    if (-not (Test-Path -Path $deployCheckScript)) {
+        throw ('ERROR: Deploy check script not found at {0}' -f $deployCheckScript)
+    }
+    Invoke-NativeCommand -FilePath $venvPython -Arguments @($deployCheckScript) -StepName 'Verify deployed code'
+    Write-Host ''
+    Write-Host '[7/7] Testing database connection...' -ForegroundColor Yellow
     if (-not (Test-Path -Path $verifyScript)) {
         throw ('ERROR: Connection test script not found at {0}' -f $verifyScript)
     }
