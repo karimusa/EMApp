@@ -21,6 +21,98 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
+function Test-WriteAccess {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectRoot
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        if ($Path -eq (Join-Path $ProjectRoot 'logs')) {
+            try {
+                New-Item -ItemType Directory -Path $Path -Force | Out-Null
+            } catch {
+                return $false
+            }
+        } elseif ($Path -eq (Join-Path $ProjectRoot '.git')) {
+            return $false
+        } else {
+            try {
+                New-Item -ItemType Directory -Path $Path -Force | Out-Null
+            } catch {
+                return $false
+            }
+        }
+    }
+
+    $probeName = '.emapp_write_probe_{0}' -f ([guid]::NewGuid().ToString('N'))
+    $probePath = Join-Path -Path $Path -ChildPath $probeName
+
+    try {
+        [System.IO.File]::WriteAllText($probePath, 'ok')
+        Remove-Item -LiteralPath $probePath -Force -ErrorAction Stop
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+function Test-RepairWriteAccess {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectRoot
+    )
+
+    return @(
+        @{ Label = 'project root'; Path = $ProjectRoot },
+        @{ Label = '.git'; Path = (Join-Path $ProjectRoot '.git') },
+        @{ Label = 'logs'; Path = (Join-Path $ProjectRoot 'logs') }
+    ) | ForEach-Object {
+        [PSCustomObject]@{
+            Label = $_.Label
+            Writable = (Test-WriteAccess -Path $_.Path -ProjectRoot $ProjectRoot)
+        }
+    }
+}
+
+function Write-RepairVerificationResult {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectRoot,
+
+        [Parameter(Mandatory = $true)]
+        [string]$CurrentUser,
+
+        [Parameter(Mandatory = $true)]
+        [array]$Checks
+    )
+
+    Write-Host ''
+
+    if ($Checks | Where-Object { -not $_.Writable }) {
+        Write-Host 'Permission repair completed, but write access could not be verified.' -ForegroundColor Yellow
+        Write-Host ''
+        Write-Host 'Please rerun setup.ps1 from an elevated PowerShell session (Run as Administrator).' -ForegroundColor Yellow
+        exit 1
+    }
+
+    Write-Host 'Permission repair completed successfully.' -ForegroundColor Green
+    Write-Host ''
+    Write-Host 'Current user:'
+    Write-Host $CurrentUser
+    Write-Host ''
+    Write-Host 'Project:'
+    Write-Host $ProjectRoot
+    Write-Host ''
+    Write-Host 'Verified writable:'
+    foreach ($check in $Checks) {
+        Write-Host ('✓ {0}' -f $check.Label)
+    }
+}
+
 function Invoke-AclCommand {
     param(
         [Parameter(Mandatory = $true)]
@@ -88,6 +180,5 @@ Invoke-AclCommand -FilePath 'icacls.exe' -Arguments @(
     '/T'
 ) -StepName 'icacls grant Administrators'
 
-Write-Host ''
-Write-Host 'Permission repair complete.' -ForegroundColor Green
-Write-Host 'You can re-run this script safely at any time.' -ForegroundColor Gray
+$verificationChecks = Test-RepairWriteAccess -ProjectRoot $ProjectRoot
+Write-RepairVerificationResult -ProjectRoot $ProjectRoot -CurrentUser $CurrentUser -Checks $verificationChecks

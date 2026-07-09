@@ -349,7 +349,6 @@ function Initialize-WindowsPermissions {
         Write-Host ''
         Write-Host '[0/6] Repairing Windows permissions...' -ForegroundColor Yellow
         Invoke-ProjectPermissionRepair -ProjectRoot $ProjectRoot
-        Write-Host '  Permission repair finished successfully.' -ForegroundColor Green
         exit 0
     }
 
@@ -365,7 +364,8 @@ function Initialize-WindowsPermissions {
         Write-Host ''
         Write-Host 'Running permission repair...' -ForegroundColor Yellow
         Invoke-ProjectPermissionRepair -ProjectRoot $ProjectRoot
-        Write-Host '  Permission repair complete. Continuing setup...' -ForegroundColor Green
+        Write-Host ''
+        Write-Host 'Continuing setup...' -ForegroundColor Green
     } else {
         Write-Host '  Skipping permission repair. Setup may fail if ACL issues remain.' -ForegroundColor Yellow
     }

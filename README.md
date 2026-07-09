@@ -33,6 +33,10 @@ cd G:\EM
 powershell -ExecutionPolicy Bypass -File .\setup.ps1 -FixPermissions
 ```
 
+On some corporate-managed Windows machines, changing ownership may require running
+PowerShell as Administrator once. After ownership is corrected, future runs of
+`setup.ps1` should not require elevation.
+
 1. **Pull and copy the configuration template** (if `.env` is missing or cannot be edited)
 
    ```powershell
