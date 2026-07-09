@@ -14,6 +14,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
+. (Join-Path $PSScriptRoot 'scripts\setup_platform.ps1')
+
 function Show-Help {
     Write-Host @'
 EMApp setup - RRA Month-End Orchestration
@@ -226,16 +228,6 @@ function Get-PythonLauncher {
     return $null
 }
 
-function Test-IsWindowsPlatform {
-    if ($PSVersionTable.PSPlatform -eq 'Win') {
-        return $true
-    }
-    if ($env:OS -eq 'Windows_NT') {
-        return $true
-    }
-    return $false
-}
-
 function Test-PathWritable {
     param(
         [Parameter(Mandatory = $true)]
@@ -337,37 +329,49 @@ function Initialize-WindowsPermissions {
         [switch]$RepairOnly
     )
 
-    if (-not (Test-IsWindowsPlatform)) {
+    try {
+        if (-not (Test-IsWindowsPlatform)) {
+            if ($RepairOnly) {
+                Write-Host 'FixPermissions is only available on Windows.' -ForegroundColor Yellow
+                exit 0
+            }
+            return
+        }
+
         if ($RepairOnly) {
-            Write-Host 'FixPermissions is only available on Windows.' -ForegroundColor Yellow
+            Write-Host ''
+            Write-Host '[0/6] Repairing Windows permissions...' -ForegroundColor Yellow
+            Invoke-ProjectPermissionRepair -ProjectRoot $ProjectRoot
             exit 0
         }
-        return
-    }
 
-    if ($RepairOnly) {
-        Write-Host ''
-        Write-Host '[0/6] Repairing Windows permissions...' -ForegroundColor Yellow
-        Invoke-ProjectPermissionRepair -ProjectRoot $ProjectRoot
-        exit 0
-    }
+        if (Test-ProjectPermissions -ProjectRoot $ProjectRoot) {
+            return
+        }
 
-    if (Test-ProjectPermissions -ProjectRoot $ProjectRoot) {
-        return
-    }
-
-    Write-Host ''
-    Write-Host 'Windows permission issues detected.' -ForegroundColor Yellow
-    Write-Host ''
-    $response = Read-Host 'Run automatic permission repair? (Y/N)'
-    if ($response -match '^[Yy]$') {
         Write-Host ''
-        Write-Host 'Running permission repair...' -ForegroundColor Yellow
-        Invoke-ProjectPermissionRepair -ProjectRoot $ProjectRoot
+        Write-Host 'Windows permission issues detected.' -ForegroundColor Yellow
         Write-Host ''
-        Write-Host 'Continuing setup...' -ForegroundColor Green
-    } else {
-        Write-Host '  Skipping permission repair. Setup may fail if ACL issues remain.' -ForegroundColor Yellow
+        $response = Read-Host 'Run automatic permission repair? (Y/N)'
+        if ($response -match '^[Yy]$') {
+            Write-Host ''
+            Write-Host 'Running permission repair...' -ForegroundColor Yellow
+            Invoke-ProjectPermissionRepair -ProjectRoot $ProjectRoot
+            Write-Host ''
+            Write-Host 'Continuing setup...' -ForegroundColor Green
+        } else {
+            Write-Host '  Skipping permission repair. Setup may fail if ACL issues remain.' -ForegroundColor Yellow
+        }
+    } catch {
+        $detail = $_.Exception.Message
+        if ($RepairOnly) {
+            Write-Host ('Permission repair failed: {0}' -f $detail) -ForegroundColor Yellow
+            exit 1
+        }
+        Write-Host 'Skipping Windows permission repair (optional).' -ForegroundColor Yellow
+        if ($detail) {
+            Write-Host ('  {0}' -f $detail) -ForegroundColor Gray
+        }
     }
 }
 
