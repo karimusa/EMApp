@@ -3,6 +3,35 @@
 Enterprise month-end orchestration console. UI is frozen; data loads through
 `app/dashboard/data.py` (SQL repositories with mock fallback for offline/testing).
 
+## Development (Windows)
+
+One command for day-to-day coding:
+
+```powershell
+.\dev.ps1
+```
+
+Or in VS Code: **Ctrl+Shift+B** (task: `EMApp: Run Development`).
+
+`dev.ps1` automatically:
+
+1. Repairs Windows permissions (only if needed)
+2. Runs `git pull` (warns and continues on failure)
+3. Creates `.venv` if missing
+4. Installs/updates Python packages
+5. Runs `setup.ps1 -PrepareOnly`
+6. Verifies database connectivity (warns and continues if unavailable)
+7. Stops any process on port **50006**
+8. Starts EMApp
+9. Opens `http://127.0.0.1:50006`
+
+Options:
+
+```powershell
+.\dev.ps1 -SkipGitPull    # do not run git pull
+.\dev.ps1 -NoBrowser      # do not open the browser automatically
+```
+
 ## First run (Windows — e.g. `G:\EM` on `SDAZ001MLD21`)
 
 1. **Pull and copy the configuration template** (if `.env` is missing or cannot be edited)
