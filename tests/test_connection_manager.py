@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from unittest.mock import MagicMock, patch
 
-from app.db.connection_manager import ConnectionManager
+from app.db.connection_manager import (
+    ConnectionDiagnostics,
+    ConnectionManager,
+    _format_connection_diagnostics,
+    _log_bootstrap_vs_primary,
+)
 
 USER_SHA256 = "6A1E8FF1C31598F89EB18B72EE8F81BFF27C85692BB1DF4E33C0F9E3731E0C3C"
 
@@ -94,3 +100,48 @@ def test_ensure_primary_validated_matches_reload_validate_path():
     ):
         assert manager.ensure_primary_validated(reload_registry=True) is None
     reload_mock.assert_called_once_with()
+
+
+def test_format_connection_diagnostics_hides_password():
+    text = _format_connection_diagnostics(
+        ConnectionDiagnostics(
+            driver="ODBC Driver 18 for SQL Server",
+            server="SDAZ001MLD21",
+            database="MonthEndOrchestrationDB",
+            uid="MonthEndApp",
+            trust_server_certificate="yes",
+            password_source="BOOTSTRAP_PASSWORD",
+        )
+    )
+    assert "PWD=<hidden>" in text
+    assert "MonthEndApp" in text
+    assert "PasswordSource=BOOTSTRAP_PASSWORD" in text
+    assert "PWD=MonthEndApp" not in text
+
+
+def test_log_bootstrap_vs_primary_reports_field_diffs(caplog):
+    bootstrap = ConnectionDiagnostics(
+        driver="ODBC Driver 18 for SQL Server",
+        server="SDAZ001MLD21",
+        database="MonthEndOrchestrationDB",
+        uid="MonthEndApp",
+        trust_server_certificate="yes",
+        password_source="BOOTSTRAP_PASSWORD",
+    )
+    primary = ConnectionDiagnostics(
+        driver="ODBC Driver 18 for SQL Server",
+        server="OTHER-SERVER",
+        database="MonthEndOrchestrationDB",
+        uid="MonthEndApp",
+        trust_server_certificate="yes",
+        password_source="sql_password_hash",
+    )
+    with caplog.at_level(logging.INFO):
+        _log_bootstrap_vs_primary(bootstrap, primary)
+
+    messages = "\n".join(record.message for record in caplog.records)
+    assert "ODBC connection comparison" in messages
+    assert "DIFF" in messages and "Server:" in messages
+    assert "MATCH" in messages and "Database:" in messages
+    assert "PWD=<hidden>" in messages
+    assert "PWD=MonthEndApp" not in messages

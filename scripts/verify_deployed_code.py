@@ -25,6 +25,7 @@ REQUIRED_MARKERS: dict[str, list[str]] = {
         "ensure_primary_validated",
         "_runtime_sql_credentials",
         "is_unusable_stored_credential",
+        "_log_bootstrap_vs_primary",
     ],
     "app/db/credentials.py": [
         "is_unusable_stored_credential",

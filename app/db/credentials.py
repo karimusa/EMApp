@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import re
+from dataclasses import dataclass
 from typing import Any
 
 from app.db.crypto import decrypt_password
@@ -30,6 +31,20 @@ _FERNET_PATTERN = re.compile(r"^gAAAAA[A-Za-z0-9_-]+$")
 
 class ConnectionCredentialError(ValueError):
     """Runtime connection credentials are missing or misconfigured."""
+
+
+@dataclass(frozen=True)
+class StoredCredential:
+    """Credential value selected from orchestration.app_connections plus origin."""
+
+    value: str | None
+    origin_column: str | None
+
+
+@dataclass(frozen=True)
+class CredentialResolution:
+    password: str
+    source: str
 
 
 def is_one_way_hash(value: str | None) -> bool:
@@ -64,16 +79,21 @@ def _coerce_text(value: Any) -> str:
 
 def stored_credential_from_row(row: dict[str, Any]) -> str | None:
     """Prefer sql_password_encrypted; fall back to legacy sql_password_hash."""
+    return stored_credential_details(row).value
+
+
+def stored_credential_details(row: dict[str, Any]) -> StoredCredential:
+    """Return the selected credential and which column it came from."""
     encrypted = _coerce_text(row.get("sql_password_encrypted"))
     legacy = _coerce_text(row.get("sql_password_hash"))
 
     if encrypted and not is_one_way_hash(encrypted):
-        return encrypted
+        return StoredCredential(encrypted, "sql_password_encrypted")
     if legacy:
-        return legacy
+        return StoredCredential(legacy, "sql_password_hash")
     if encrypted:
-        return encrypted
-    return None
+        return StoredCredential(encrypted, "sql_password_encrypted")
+    return StoredCredential(None, None)
 
 
 def is_unusable_stored_credential(
@@ -155,8 +175,33 @@ def resolve_sql_login_password(
     database_name: str = "",
     sql_username: str = "",
     config: dict | None = None,
+    origin_column: str | None = None,
 ) -> str:
     """Return a SQL Server login password or raise ConnectionCredentialError."""
+    return resolve_sql_login_password_with_source(
+        stored_credential,
+        secret_key=secret_key,
+        environment_name=environment_name,
+        server_name=server_name,
+        database_name=database_name,
+        sql_username=sql_username,
+        config=config,
+        origin_column=origin_column,
+    ).password
+
+
+def resolve_sql_login_password_with_source(
+    stored_credential: str | None,
+    *,
+    secret_key: str,
+    environment_name: str,
+    server_name: str = "",
+    database_name: str = "",
+    sql_username: str = "",
+    config: dict | None = None,
+    origin_column: str | None = None,
+) -> CredentialResolution:
+    """Return password plus a diagnostic source label (never includes the password)."""
     env = environment_name or "connection"
     fallback = bootstrap_password_fallback(
         server_name=server_name,
@@ -169,7 +214,7 @@ def resolve_sql_login_password(
         stored_credential, secret_key=secret_key
     ):
         logger.info("%s: using BOOTSTRAP_PASSWORD for runtime SQL connection", env)
-        return fallback
+        return CredentialResolution(fallback, "BOOTSTRAP_PASSWORD")
 
     raw = _normalize_credential_text(stored_credential)
     if not raw:
@@ -202,6 +247,9 @@ def resolve_sql_login_password(
                 "Verify CONNECTION_SECRET_KEY matches the key used by "
                 "scripts/encrypt_password.py."
             )
-        return password
+        return CredentialResolution(password, "decrypted sql_password_encrypted")
 
-    return stored_value
+    column = origin_column or "sql_password_encrypted"
+    if column == "sql_password_hash":
+        return CredentialResolution(stored_value, "sql_password_hash")
+    return CredentialResolution(stored_value, "sql_password_encrypted")
