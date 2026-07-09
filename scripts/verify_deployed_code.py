@@ -83,9 +83,9 @@ def main() -> int:
         for item in stale:
             print(f"  stale: {item}", file=sys.stderr)
         print(
-            "\nPull the latest main branch and restart the app:\n"
+            "\nPull the latest branch and restart the app:\n"
             "  cd G:\\EM\n"
-            "  git pull origin main\n"
+            "  git pull origin cursor/legacy-schema-compat-2c1b\n"
             "  .\\setup.ps1 -TestConnection",
             file=sys.stderr,
         )

@@ -181,6 +181,24 @@ function Test-BootstrapConfiguration {
     throw 'Bootstrap configuration is incomplete.'
 }
 
+function Test-AppPortInUse {
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$Port
+    )
+
+    try {
+        if (Get-Command Get-NetTCPConnection -ErrorAction SilentlyContinue) {
+            $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+                Select-Object -First 1
+            return $null -ne $listener
+        }
+    } catch {
+    }
+
+    return $false
+}
+
 function Get-PythonLauncher {
     $candidates = @(
         @{ FilePath = 'py';      Args = @('-3'); VersionArgs = @('-3', '--version'); DisplayName = 'py -3' },
@@ -326,6 +344,9 @@ if ($TestConnection) {
     Invoke-NativeCommand -FilePath $venvPython -Arguments @($deployCheckScript) -StepName 'Verify deployed code'
     Write-Host ''
     Write-Host '[7/7] Testing database connection...' -ForegroundColor Yellow
+    if (Test-AppPortInUse -Port $Port) {
+        Write-Host ('  WARNING: Port {0} is already in use — stop start.bat (Ctrl+C) before testing if git pull or setup fails with file locks.' -f $Port) -ForegroundColor Yellow
+    }
     if (-not (Test-Path -Path $verifyScript)) {
         throw ('ERROR: Connection test script not found at {0}' -f $verifyScript)
     }

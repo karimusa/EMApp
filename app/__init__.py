@@ -1,6 +1,8 @@
 """RRA Month-End Orchestration — incremental build."""
 
 import logging
+import os
+import sys
 from logging.handlers import RotatingFileHandler
 
 from flask import Flask, redirect, session, url_for
@@ -59,12 +61,31 @@ def create_app(config_class=Config):
 
 
 def _configure_logging(app):
+    formatter = logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    )
+
+    if app.config.get("TESTING") or os.environ.get("EMAPP_SKIP_FILE_LOG"):
+        handler = logging.StreamHandler(sys.stderr)
+        handler.setFormatter(formatter)
+        app.logger.addHandler(handler)
+        return
+
     log_dir = app.config["LOGS_DIR"]
     log_dir.mkdir(parents=True, exist_ok=True)
-    handler = RotatingFileHandler(
-        log_dir / "emapp.log", maxBytes=5_000_000, backupCount=5
-    )
-    handler.setFormatter(
-        logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-    )
+    log_path = log_dir / "emapp.log"
+
+    handler: logging.Handler
+    try:
+        handler = RotatingFileHandler(
+            log_path, maxBytes=5_000_000, backupCount=5
+        )
+    except OSError as exc:
+        print(
+            f"WARNING: File logging disabled ({log_path}): {exc}",
+            file=sys.stderr,
+        )
+        handler = logging.StreamHandler(sys.stderr)
+
+    handler.setFormatter(formatter)
     app.logger.addHandler(handler)

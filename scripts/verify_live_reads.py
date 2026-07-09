@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -65,6 +66,7 @@ def _check(label: str, fn) -> None:
 
 def _quiet_cli_logging() -> None:
     """Keep Flask/Python INFO logs off stderr during setup.ps1 -TestConnection."""
+    os.environ.setdefault("EMAPP_SKIP_FILE_LOG", "1")
     logging.getLogger().setLevel(logging.WARNING)
     for logger_name in ("werkzeug", "flask", "flask.app"):
         logging.getLogger(logger_name).setLevel(logging.WARNING)
