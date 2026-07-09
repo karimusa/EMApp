@@ -23,7 +23,7 @@ def _database_unavailable_message() -> str:
     return (
         "The application database is not reachable. "
         "Verify orchestration.app_connections credentials for PRIMARY "
-        "(sql_username / sql_password_encrypted) or contact your administrator."
+        "(sql_username / sql_password_hash) or contact your administrator."
     )
 
 
@@ -31,7 +31,7 @@ def _login_config_error() -> str | None:
     if use_mock_data():
         return None
     try:
-        return get_connection_manager().ensure_primary_validated(reload_registry=True)
+        return get_connection_manager().ensure_primary_validated(reload_registry=False)
     except RuntimeError:
         return _database_unavailable_message()
     except Exception as exc:
@@ -75,6 +75,15 @@ def login():
                 elif not auth_service.verify_password(user, password):
                     error = "Invalid username or password."
                 else:
+                    if not use_mock_data():
+                        try:
+                            auth_service.upgrade_legacy_password_if_needed(user, password)
+                            auth_service.touch_last_login(user["user_id"])
+                        except Exception:
+                            logger.exception(
+                                "Failed to persist login metadata for user_id=%s",
+                                user["user_id"],
+                            )
                     session.clear()
                     session["user_id"] = user["user_id"]
                     session["username"] = user["username"]

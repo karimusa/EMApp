@@ -51,6 +51,7 @@ def get_users() -> list[dict[str, Any]]:
             "role": "Admin",
             "is_active": True,
             "created_at": "2025-01-04 09:12:00",
+            "last_login": "2025-05-01 08:00:00",
             "updated_at": "2025-05-01 08:00:00",
         },
         {
@@ -60,6 +61,7 @@ def get_users() -> list[dict[str, Any]]:
             "role": "ReadOnly",
             "is_active": True,
             "created_at": "2025-01-04 09:15:00",
+            "last_login": None,
             "updated_at": None,
         },
         {
@@ -69,6 +71,7 @@ def get_users() -> list[dict[str, Any]]:
             "role": "Admin",
             "is_active": True,
             "created_at": "2025-02-18 14:30:00",
+            "last_login": None,
             "updated_at": None,
         },
         {
@@ -78,6 +81,7 @@ def get_users() -> list[dict[str, Any]]:
             "role": "ReadOnly",
             "is_active": False,
             "created_at": "2025-03-22 11:05:00",
+            "last_login": "2025-04-10 16:40:00",
             "updated_at": "2025-04-10 16:40:00",
         },
     ]

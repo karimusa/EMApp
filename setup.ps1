@@ -6,6 +6,7 @@ param(
     [int]$Port = 50006,
     [switch]$PrepareOnly,
     [switch]$TestConnection,
+    [switch]$FixPermissions,
     [switch]$Help
 )
 
@@ -13,15 +14,18 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
+. (Join-Path $PSScriptRoot 'scripts\setup_platform.ps1')
+
 function Show-Help {
     Write-Host @'
 EMApp setup - RRA Month-End Orchestration
 
 Usage:
-  .\setup.ps1 [-PrepareOnly] [-TestConnection] [-Port 50006]
+  .\setup.ps1 [-PrepareOnly] [-TestConnection] [-FixPermissions] [-Port 50006]
 
   PrepareOnly     Install/check only; do not start the Flask app
   TestConnection  Verify bootstrap SQL + orchestration.app_connections
+  FixPermissions  Repair Windows ACL/ownership on the project folder and exit
   Port            Default 50006 (EMApp; port 5000 is intentionally avoided)
 
 Deploy path example:
@@ -40,9 +44,36 @@ function Invoke-NativeCommand {
         [string]$StepName
     )
 
-    & $FilePath @Arguments
-    if ($LASTEXITCODE -ne 0) {
-        throw ('{0} failed with exit code {1}' -f $StepName, $LASTEXITCODE)
+    # Python/Flask log INFO to stderr; do not treat that as a terminating error.
+    $previousNativeErrorPref = $null
+    if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -Scope Global -ErrorAction SilentlyContinue) {
+        $previousNativeErrorPref = $PSNativeCommandUseErrorActionPreference
+        $PSNativeCommandUseErrorActionPreference = $false
+    }
+
+    $previousErrorAction = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+
+    try {
+        & $FilePath @Arguments 2>&1 | ForEach-Object {
+            if ($_ -is [System.Management.Automation.ErrorRecord]) {
+                $message = if ($_.Exception) { $_.Exception.Message } else { "$_" }
+                if ($message) {
+                    Write-Host $message
+                }
+            } else {
+                Write-Host $_
+            }
+        }
+
+        if ($LASTEXITCODE -ne 0) {
+            throw ('{0} failed with exit code {1}' -f $StepName, $LASTEXITCODE)
+        }
+    } finally {
+        $ErrorActionPreference = $previousErrorAction
+        if ($null -ne $previousNativeErrorPref) {
+            $PSNativeCommandUseErrorActionPreference = $previousNativeErrorPref
+        }
     }
 }
 
@@ -154,6 +185,24 @@ function Test-BootstrapConfiguration {
     throw 'Bootstrap configuration is incomplete.'
 }
 
+function Test-AppPortInUse {
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$Port
+    )
+
+    try {
+        if (Get-Command Get-NetTCPConnection -ErrorAction SilentlyContinue) {
+            $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+                Select-Object -First 1
+            return $null -ne $listener
+        }
+    } catch {
+    }
+
+    return $false
+}
+
 function Get-PythonLauncher {
     $candidates = @(
         @{ FilePath = 'py';      Args = @('-3'); VersionArgs = @('-3', '--version'); DisplayName = 'py -3' },
@@ -177,6 +226,153 @@ function Get-PythonLauncher {
     }
 
     return $null
+}
+
+function Test-PathWritable {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectRoot
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        if ($Path -eq (Join-Path $ProjectRoot 'logs')) {
+            try {
+                New-Item -ItemType Directory -Path $Path -Force | Out-Null
+            } catch {
+                return $false
+            }
+        } elseif ($Path -eq (Join-Path $ProjectRoot '.git')) {
+            return $false
+        } else {
+            try {
+                New-Item -ItemType Directory -Path $Path -Force | Out-Null
+            } catch {
+                return $false
+            }
+        }
+    }
+
+    $probeName = '.emapp_write_probe_{0}' -f ([guid]::NewGuid().ToString('N'))
+    $probePath = Join-Path -Path $Path -ChildPath $probeName
+
+    try {
+        [System.IO.File]::WriteAllText($probePath, 'ok')
+        Remove-Item -LiteralPath $probePath -Force -ErrorAction Stop
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+function Test-ProjectPermissions {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectRoot
+    )
+
+    $targets = @(
+        $ProjectRoot,
+        (Join-Path $ProjectRoot '.git'),
+        (Join-Path $ProjectRoot 'logs')
+    )
+
+    foreach ($target in $targets) {
+        if (-not (Test-PathWritable -Path $target -ProjectRoot $ProjectRoot)) {
+            return $false
+        }
+    }
+
+    $fetchHead = Join-Path $ProjectRoot '.git\FETCH_HEAD'
+    if (Test-Path -LiteralPath $fetchHead) {
+        try {
+            $stream = [System.IO.File]::Open(
+                $fetchHead,
+                [System.IO.FileMode]::Open,
+                [System.IO.FileAccess]::ReadWrite,
+                [System.IO.FileShare]::None
+            )
+            $stream.Close()
+            $stream.Dispose()
+        } catch {
+            return $false
+        }
+    }
+
+    return $true
+}
+
+function Invoke-ProjectPermissionRepair {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectRoot
+    )
+
+    $fixScript = Join-Path $ProjectRoot 'scripts\fix_permissions.ps1'
+    if (-not (Test-Path -Path $fixScript)) {
+        throw ('ERROR: Permission repair script not found at {0}' -f $fixScript)
+    }
+
+    & $fixScript -ProjectRoot $ProjectRoot
+    if ($LASTEXITCODE -ne 0) {
+        throw ('Permission repair failed with exit code {0}' -f $LASTEXITCODE)
+    }
+}
+
+function Initialize-WindowsPermissions {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectRoot,
+
+        [switch]$RepairOnly
+    )
+
+    try {
+        if (-not (Test-IsWindowsPlatform)) {
+            if ($RepairOnly) {
+                Write-Host 'FixPermissions is only available on Windows.' -ForegroundColor Yellow
+                exit 0
+            }
+            return
+        }
+
+        if ($RepairOnly) {
+            Write-Host ''
+            Write-Host '[0/6] Repairing Windows permissions...' -ForegroundColor Yellow
+            Invoke-ProjectPermissionRepair -ProjectRoot $ProjectRoot
+            exit 0
+        }
+
+        if (Test-ProjectPermissions -ProjectRoot $ProjectRoot) {
+            return
+        }
+
+        Write-Host ''
+        Write-Host 'Windows permission issues detected.' -ForegroundColor Yellow
+        Write-Host ''
+        $response = Read-Host 'Run automatic permission repair? (Y/N)'
+        if ($response -match '^[Yy]$') {
+            Write-Host ''
+            Write-Host 'Running permission repair...' -ForegroundColor Yellow
+            Invoke-ProjectPermissionRepair -ProjectRoot $ProjectRoot
+            Write-Host ''
+            Write-Host 'Continuing setup...' -ForegroundColor Green
+        } else {
+            Write-Host '  Skipping permission repair. Setup may fail if ACL issues remain.' -ForegroundColor Yellow
+        }
+    } catch {
+        $detail = $_.Exception.Message
+        if ($RepairOnly) {
+            Write-Host ('Permission repair failed: {0}' -f $detail) -ForegroundColor Yellow
+            exit 1
+        }
+        Write-Host 'Skipping Windows permission repair (optional).' -ForegroundColor Yellow
+        if ($detail) {
+            Write-Host ('  {0}' -f $detail) -ForegroundColor Gray
+        }
+    }
 }
 
 if ($Help) {
@@ -210,6 +406,8 @@ if (-not (Test-Path -Path $requirementsPath)) {
 if (-not (Test-Path -Path $runScript)) {
     throw ('ERROR: run.py was not found at {0}' -f $runScript)
 }
+
+Initialize-WindowsPermissions -ProjectRoot $ProjectRoot -RepairOnly:$FixPermissions
 
 Write-Host ''
 Write-Host '[1/6] Checking Python...' -ForegroundColor Yellow
@@ -299,10 +497,15 @@ if ($TestConnection) {
     Invoke-NativeCommand -FilePath $venvPython -Arguments @($deployCheckScript) -StepName 'Verify deployed code'
     Write-Host ''
     Write-Host '[7/7] Testing database connection...' -ForegroundColor Yellow
+    if (Test-AppPortInUse -Port $Port) {
+        Write-Host ('  WARNING: Port {0} is already in use — stop start.bat (Ctrl+C) before testing if git pull or setup fails with file locks.' -f $Port) -ForegroundColor Yellow
+    }
     if (-not (Test-Path -Path $verifyScript)) {
         throw ('ERROR: Connection test script not found at {0}' -f $verifyScript)
     }
     Invoke-NativeCommand -FilePath $venvPython -Arguments @($verifyScript, '--connections-only') -StepName 'Test database connection'
+    Write-Host ''
+    Write-Host 'Database connection test: SUCCESS' -ForegroundColor Green
     exit 0
 }
 
