@@ -34,6 +34,7 @@ if seed_env.is_file():
 from werkzeug.security import generate_password_hash
 
 from app.db.registry import STEP_REGISTRY, job_key
+from app.db.job_steps_schema import detect_job_steps_target_column
 
 RUN_ID = 42
 JOB_ID = 1
@@ -200,10 +201,11 @@ def seed(db) -> None:
     )
     cursor.execute("SET IDENTITY_INSERT orchestration.jobs OFF")
 
-    # orchestration.job_steps from registry
+    # orchestration.job_steps from registry (logical environment targets)
     cursor.execute("SET IDENTITY_INSERT orchestration.job_steps ON")
     order_by_phase: dict[str, int] = {}
     server_cache: dict[str, str] = {}
+    target_column = detect_job_steps_target_column(cursor)
     for step_id, step in enumerate(STEP_REGISTRY, start=1):
         if step.environment_name not in server_cache:
             cursor.execute(
@@ -214,26 +216,57 @@ def seed(db) -> None:
             server_cache[step.environment_name] = row[0] if row else "unknown"
         order = order_by_phase.get(step.phase_code, 0) + 1
         order_by_phase[step.phase_code] = order
-        cursor.execute(
-            """
-            IF NOT EXISTS (SELECT 1 FROM orchestration.job_steps WHERE step_id = ?)
-            INSERT INTO orchestration.job_steps
-                (step_id, job_id, step_name, phase_code, server_name, step_order,
-                 execute_proc_name, validate_proc_name, is_enabled)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
-            """,
-            (
-                step_id,
-                step_id,
-                JOB_ID,
-                step.step_name,
-                step.phase_code,
-                server_cache[step.environment_name],
-                order,
-                step.execute_proc,
-                step.validate_proc,
-            ),
-        )
+        if target_column:
+            cursor.execute(
+                f"""
+                IF NOT EXISTS (SELECT 1 FROM orchestration.job_steps WHERE step_id = ?)
+                INSERT INTO orchestration.job_steps
+                    (step_id, job_id, step_name, phase_code, {target_column}, server_name, step_order,
+                     execute_proc_name, validate_proc_name, is_enabled)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                """,
+                (
+                    step_id,
+                    step_id,
+                    JOB_ID,
+                    step.step_name,
+                    step.phase_code,
+                    step.environment_name,
+                    server_cache[step.environment_name],
+                    order,
+                    step.execute_proc,
+                    step.validate_proc,
+                ),
+            )
+            cursor.execute(
+                f"""
+                UPDATE orchestration.job_steps
+                SET {target_column} = ?
+                WHERE step_id = ?
+                """,
+                (step.environment_name, step_id),
+            )
+        else:
+            cursor.execute(
+                """
+                IF NOT EXISTS (SELECT 1 FROM orchestration.job_steps WHERE step_id = ?)
+                INSERT INTO orchestration.job_steps
+                    (step_id, job_id, step_name, phase_code, server_name, step_order,
+                     execute_proc_name, validate_proc_name, is_enabled)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+                """,
+                (
+                    step_id,
+                    step_id,
+                    JOB_ID,
+                    step.step_name,
+                    step.phase_code,
+                    server_cache[step.environment_name],
+                    order,
+                    step.execute_proc,
+                    step.validate_proc,
+                ),
+            )
         if step.agent_job:
             cursor.execute(
                 """

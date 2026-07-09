@@ -78,4 +78,4 @@ def test_incomplete_message_contains_env_path():
     )
     msg = format_incomplete_bootstrap_message(cfg)
     assert "G:\\EM\\.env" in msg or "G:/EM/.env" in msg
-    assert "BOOTSTRAP_SERVER=SDAZ001MLD21" in msg
+    assert "BOOTSTRAP_SERVER=<your-sql-server>" in msg

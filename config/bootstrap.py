@@ -107,10 +107,10 @@ Edit:
 
 Expected:
 
-BOOTSTRAP_SERVER=SDAZ001MLD21
+BOOTSTRAP_SERVER=<your-sql-server>
 BOOTSTRAP_DATABASE=MonthEndOrchestrationDB
 BOOTSTRAP_USER=MonthEndApp
-BOOTSTRAP_PASSWORD=MonthEndApp
+BOOTSTRAP_PASSWORD=<your-password>
 
 CONNECTION_SECRET_KEY is optional unless sql_password_encrypted is present and values are Fernet-encrypted.
 Store SQL login passwords in orchestration.app_connections.sql_password_hash (current schema).

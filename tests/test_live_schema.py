@@ -57,7 +57,7 @@ def test_normalize_job_step_row_uses_command_and_is_active():
         "is_active": True,
         "step_type": "sql",
         "command": "usp_backup_bi",
-        "server_name": "SDAZ001MLD21",
+        "server_name": "legacy-host.example",
         "requires_approval": False,
         "on_failure_action": "stop",
         "retry_count": 0,
@@ -69,6 +69,9 @@ def test_normalize_job_step_row_uses_command_and_is_active():
     assert normalized["execute_proc_name"] == "usp_backup_bi"
     assert normalized["is_enabled"] is True
     assert normalized["phase_code"] == "P1"
+    assert normalized["connection_environment"] == "PRIMARY"
+    assert normalized["server_name"] == "mock-primary.local"
+    assert normalized["server_name"] != row["server_name"]
 
 
 def test_normalize_job_run_row_maps_live_columns():
@@ -119,7 +122,7 @@ def test_normalize_execution_log_row_maps_live_columns():
     row = {
         "log_id": 1,
         "process_name": "usp_backup_bi",
-        "database_name": "BI",
+        "database_name": "mock_orchestration",
         "step": "Backup BI",
         "status": "Succeeded",
         "message": "Done",
@@ -129,6 +132,8 @@ def test_normalize_execution_log_row_maps_live_columns():
     assert normalized["step_name"] == "Backup BI"
     assert normalized["logged_at"].startswith("05/31 02:19")
     assert normalized["run_id"] is None
+    assert normalized["connection_environment"] == "PRIMARY"
+    assert normalized["server_name"] == "mock-primary.local"
 
 
 def test_user_repository_sql_uses_live_columns():

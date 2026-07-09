@@ -11,6 +11,10 @@ from typing import Any
 
 from app.db.formatters import format_log_datetime, format_run_datetime, format_timestamp
 from app.db.registry import STEP_REGISTRY, agent_job_for_proc, job_key
+from app.db.runtime_connections import (
+    resolve_execution_log_target,
+    resolve_step_runtime_target,
+)
 
 _REGISTRY_BY_COMMAND = {step.execute_proc: step for step in STEP_REGISTRY}
 
@@ -164,12 +168,16 @@ def normalize_job_step_row(row: dict[str, Any]) -> dict[str, Any]:
     execute_proc_name = command or (registry_step.execute_proc if registry_step else "")
     validate_proc_name = registry_step.validate_proc if registry_step else ""
     agent_job = registry_step.agent_job if registry_step else agent_job_for_proc(execute_proc_name)
+    runtime_target = resolve_step_runtime_target(row, registry_step)
     return {
         "step_id": row["step_id"],
         "job_id": row["job_id"],
         "step_name": row["step_name"],
         "phase_code": row.get("phase_code") or "",
-        "server_name": row.get("server_name") or "",
+        "connection_environment": runtime_target["connection_environment"],
+        "server_name": runtime_target["server_name"],
+        "database_name": runtime_target["database_name"],
+        "sql_username": runtime_target["sql_username"],
         "step_order": row.get("step_order") or 0,
         "execute_proc_name": execute_proc_name,
         "validate_proc_name": validate_proc_name,
@@ -223,6 +231,7 @@ def normalize_step_run_row(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def normalize_execution_log_row(row: dict[str, Any]) -> dict[str, Any]:
+    runtime_target = resolve_execution_log_target(row.get("database_name"))
     return {
         "log_id": row["log_id"],
         "run_id": None,
@@ -232,7 +241,9 @@ def normalize_execution_log_row(row: dict[str, Any]) -> dict[str, Any]:
         "message": row.get("message") or "",
         "status": normalize_execution_status(row.get("status")),
         "duration_seconds": None,
-        "server_name": row.get("database_name") or row.get("process_name") or "",
+        "connection_environment": runtime_target["connection_environment"],
+        "server_name": runtime_target["server_name"],
+        "database_name": runtime_target["database_name"],
         "logged_at": format_log_datetime(row.get("log_time")),
     }
 

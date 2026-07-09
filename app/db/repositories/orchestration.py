@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from app.db.job_steps_schema import detect_job_steps_target_column, job_steps_select_sql
 from app.db.live_schema import (
     build_step_run_from_execution_log_row,
     normalize_execution_log_row,
@@ -18,6 +19,29 @@ from app.db.registry import PHASES
 from app.db.repositories.base import query_primary, use_mock_data
 
 logger = logging.getLogger(__name__)
+
+_JOB_STEPS_TARGET_COLUMN: str | None | bool = False
+
+
+def _job_steps_target_column() -> str | None:
+    global _JOB_STEPS_TARGET_COLUMN
+    if _JOB_STEPS_TARGET_COLUMN is not False:
+        return _JOB_STEPS_TARGET_COLUMN
+
+    try:
+        from app.db.connection_manager import get_connection_manager
+
+        with get_connection_manager().connect_bootstrap() as db:
+            cursor = db.cursor()
+            _JOB_STEPS_TARGET_COLUMN = detect_job_steps_target_column(cursor)
+    except Exception:
+        logger.debug("Could not probe orchestration.job_steps target column", exc_info=True)
+        _JOB_STEPS_TARGET_COLUMN = None
+    return _JOB_STEPS_TARGET_COLUMN
+
+
+def _normalize_job_step_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [normalize_job_step_row(row) for row in rows]
 
 _STEP_RUNS_SQL = """
     SELECT
@@ -127,30 +151,8 @@ class OrchestrationRepository:
 
             return mock_data.get_job_steps()
 
-        rows = query_primary(
-            """
-            SELECT
-                step_id,
-                job_id,
-                step_order,
-                step_name,
-                parameters,
-                is_active,
-                step_type,
-                command,
-                server_name,
-                requires_approval,
-                on_failure_action,
-                retry_count,
-                retry_delay_sec,
-                execution_mode,
-                phase_code
-            FROM orchestration.job_steps
-            WHERE is_active = 1
-            ORDER BY phase_code, step_order, step_id
-            """
-        )
-        return [normalize_job_step_row(row) for row in rows]
+        rows = query_primary(job_steps_select_sql(target_column=_job_steps_target_column()))
+        return _normalize_job_step_rows(rows)
 
     def get_current_run_id(self) -> int | None:
         rows = query_primary(

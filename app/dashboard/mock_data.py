@@ -27,6 +27,7 @@ from typing import Any
 from werkzeug.security import generate_password_hash
 
 from app.db.registry import PHASES, STEP_REGISTRY, job_key
+from app.db.runtime_connections import resolve_connection_by_environment
 
 JOB_ID = 1
 RUN_ID = 42
@@ -131,12 +132,19 @@ def get_active_connection() -> dict[str, Any]:
     return connections[0]
 
 
+def _connection_target(environment_name: str) -> dict[str, str]:
+    conn = resolve_connection_by_environment(environment_name)
+    return {
+        "connection_environment": environment_name,
+        "server_name": conn.get("server_name") or "",
+        "database_name": conn.get("database_name") or "",
+        "sql_username": conn.get("sql_username") or "",
+    }
+
+
 def _server_for(environment_name: str) -> str:
     """Resolve a server name from ``app_connections`` (never hardcoded)."""
-    for conn in get_app_connections():
-        if conn["environment_name"] == environment_name:
-            return conn["server_name"]
-    return get_active_connection()["server_name"]
+    return _connection_target(environment_name)["server_name"]
 
 
 # ---------------------------------------------------------------------------
@@ -227,13 +235,17 @@ def get_job_steps() -> list[dict[str, Any]]:
     for step_id, step in enumerate(STEP_REGISTRY, start=1):
         order = order_by_phase.get(step.phase_code, 0) + 1
         order_by_phase[step.phase_code] = order
+        target = _connection_target(step.environment_name)
         rows.append(
             {
                 "step_id": step_id,
                 "job_id": JOB_ID,
                 "step_name": step.step_name,
                 "phase_code": step.phase_code,
-                "server_name": _server_for(step.environment_name),
+                "connection_environment": target["connection_environment"],
+                "server_name": target["server_name"],
+                "database_name": target["database_name"],
+                "sql_username": target["sql_username"],
                 "step_order": order,
                 "execute_proc_name": step.execute_proc,
                 "validate_proc_name": step.validate_proc,
@@ -356,7 +368,9 @@ def _log_row(log_id, step, message, status, duration, logged_at) -> dict[str, An
         "message": message,
         "status": status,
         "duration_seconds": duration,
+        "connection_environment": step.get("connection_environment", "PRIMARY"),
         "server_name": step["server_name"],
+        "database_name": step.get("database_name", ""),
         "logged_at": logged_at,
     }
 

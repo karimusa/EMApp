@@ -15,7 +15,9 @@ JOB_STEPS = [
         "job_id": 1,
         "step_name": "Area Manager Dashboard Load",
         "phase_code": "BI",
-        "server_name": "SPUS001BDBEXT",
+        "connection_environment": "PRIMARY",
+        "server_name": "mock-primary.local",
+        "database_name": "mock_orchestration",
         "step_order": 19,
         "execute_proc_name": "usp_me_19_area_manager_dashboard_load",
         "validate_proc_name": "usp_validate_me_19_area_manager_dashboard_load",
@@ -28,7 +30,7 @@ JOB_STEPS = [
 EXECUTION_LOG_ROW = {
     "log_id": 501,
     "process_name": "usp_me_19_area_manager_dashboard_load",
-    "database_name": "MonthEndOrchestrationDB",
+    "database_name": "mock_orchestration",
     "step": "Area Manager Dashboard Load",
     "status": "Succeeded",
     "message": "Area Manager Dashboard load completed successfully",
@@ -62,7 +64,7 @@ def test_get_step_runs_falls_back_to_execution_log(mock_query, _mock_mode):
                     "is_active": True,
                     "step_type": "sql",
                     "command": "usp_me_19_area_manager_dashboard_load",
-                    "server_name": "SPUS001BDBEXT",
+                    "server_name": "legacy-prod-host.example",
                     "requires_approval": False,
                     "on_failure_action": "stop",
                     "retry_count": 0,
@@ -99,7 +101,7 @@ def test_use_mock_data_false_when_primary_ready(mock_get_manager):
 
     app = create_app(DevelopmentConfig)
     app.config["DATA_SOURCE"] = "auto"
-    app.config["BOOTSTRAP_SERVER"] = "SDAZ001MLD21"
+    app.config["BOOTSTRAP_SERVER"] = "bootstrap-host.example"
     app.config["TESTING"] = False
 
     with app.app_context():
@@ -116,7 +118,7 @@ def test_use_mock_data_true_when_primary_not_ready(mock_get_manager):
 
     app = create_app(DevelopmentConfig)
     app.config["DATA_SOURCE"] = "auto"
-    app.config["BOOTSTRAP_SERVER"] = "SDAZ001MLD21"
+    app.config["BOOTSTRAP_SERVER"] = "bootstrap-host.example"
     app.config["TESTING"] = False
 
     with app.app_context():
