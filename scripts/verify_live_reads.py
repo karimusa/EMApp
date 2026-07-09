@@ -38,15 +38,15 @@ def _primary_failure_hint(rows: list[dict]) -> str | None:
     stored = stored_credential_from_row(primary)
     if stored and is_one_way_hash(stored):
         return (
-            "Hint: PRIMARY stores a one-way hash in sql_password_encrypted/"
-            "sql_password_hash. When PRIMARY matches bootstrap server/database/user, "
+            "Hint: PRIMARY stores a one-way hash in sql_password_hash. "
+            "When PRIMARY matches bootstrap server/database/user, "
             "BOOTSTRAP_PASSWORD is used automatically after you deploy the latest code. "
-            "Otherwise replace the hash with the real SQL login password or Fernet "
-            "ciphertext from scripts/encrypt_password.py."
+            "Otherwise replace the hash with the real SQL login password in "
+            "orchestration.app_connections.sql_password_hash."
         )
     if not stored:
         return (
-            "Hint: PRIMARY has no sql_password_encrypted value. "
+            "Hint: PRIMARY has no sql_password_hash value. "
             "Set it in orchestration.app_connections or match bootstrap "
             "server/database/user so BOOTSTRAP_PASSWORD applies."
         )

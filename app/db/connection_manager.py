@@ -16,6 +16,12 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Generator, Optional
 
+from app.db.app_connections_schema import (
+    active_app_connections_sql,
+    detect_sql_password_encrypted_column,
+    registry_app_connections_sql,
+    runtime_credential_column_label,
+)
 from app.db.credentials import (
     ConnectionCredentialError,
     is_one_way_hash,
@@ -34,52 +40,17 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Bump when PRIMARY runtime credential behavior changes (visible in startup logs).
-RUNTIME_CREDENTIAL_BUILD_ID = "primary-connection-diagnostics-2026-07-09"
+RUNTIME_CREDENTIAL_BUILD_ID = "legacy-schema-compat-2026-07-09"
 
-APP_CONNECTIONS_SELECT = """
-    SELECT
-        connection_id,
-        environment_name,
-        is_active,
-        server_name,
-        database_name,
-        auth_type,
-        sql_username,
-        sql_password_encrypted,
-        sql_password_hash,
-        description,
-        created_at,
-        updated_at
-    FROM orchestration.app_connections
-"""
-
-ACTIVE_APP_CONNECTIONS_SQL = f"{APP_CONNECTIONS_SELECT}\n    WHERE is_active = 1"
-
-LEGACY_APP_CONNECTIONS_SELECT = """
-    SELECT
-        connection_id,
-        environment_name,
-        is_active,
-        server_name,
-        database_name,
-        auth_type,
-        sql_username,
-        sql_password_hash,
-        description,
-        created_at,
-        updated_at
-    FROM orchestration.app_connections
-"""
-
-ACTIVE_APP_CONNECTIONS_LEGACY_SQL = (
-    f"{LEGACY_APP_CONNECTIONS_SELECT}\n    WHERE is_active = 1"
+# Backward-compatible exports for tests and callers.
+APP_CONNECTIONS_SELECT = active_app_connections_sql(include_encrypted_password=False).replace(
+    "\n    WHERE is_active = 1", ""
 )
-
-APP_CONNECTIONS_REGISTRY_SQL = f"{APP_CONNECTIONS_SELECT}\n    ORDER BY environment_name"
-
-LEGACY_APP_CONNECTIONS_REGISTRY_SQL = (
-    f"{LEGACY_APP_CONNECTIONS_SELECT}\n    ORDER BY environment_name"
-)
+ACTIVE_APP_CONNECTIONS_SQL = active_app_connections_sql(include_encrypted_password=False)
+LEGACY_APP_CONNECTIONS_SELECT = APP_CONNECTIONS_SELECT
+ACTIVE_APP_CONNECTIONS_LEGACY_SQL = ACTIVE_APP_CONNECTIONS_SQL
+APP_CONNECTIONS_REGISTRY_SQL = registry_app_connections_sql(include_encrypted_password=False)
+LEGACY_APP_CONNECTIONS_REGISTRY_SQL = APP_CONNECTIONS_REGISTRY_SQL
 
 
 def _import_pyodbc():
@@ -99,8 +70,9 @@ def _friendly_sql_error(environment_name: str, exc: Exception) -> ConnectionErro
         return ConnectionError(
             f"{environment_name}: SQL Server rejected the login for the configured "
             "runtime credentials. Update orchestration.app_connections."
-            "sql_password_encrypted with the real SQL login password or Fernet "
-            "ciphertext from scripts/encrypt_password.py."
+            "sql_password_hash with the real SQL login password (plain text for "
+            "development) or apply the sql_password_encrypted migration and store "
+            "a Fernet ciphertext from scripts/encrypt_password.py."
         )
     return ConnectionError(
         f"{environment_name}: database connection failed. Contact your administrator."
@@ -219,6 +191,11 @@ class ConnectionManager:
         self._connections: dict[str, AppConnection] = {}
         self._connection_errors: dict[str, str] = {}
         self._primary_error: str | None = None
+        self._sql_password_encrypted_available: bool | None = None
+
+    @property
+    def sql_password_encrypted_available(self) -> bool:
+        return bool(self._sql_password_encrypted_available)
 
     def load_connections(self) -> None:
         rows = self._fetch_app_connections()
@@ -308,6 +285,7 @@ class ConnectionManager:
                 sql_username=sql_username,
                 config=self._config,
                 origin_column=origin_column,
+                include_encrypted_password=self.sql_password_encrypted_available,
             )
         except ConnectionCredentialError as exc:
             raise ConnectionError(str(exc)) from exc
@@ -558,20 +536,38 @@ class ConnectionManager:
     def _fetch_app_connections(self) -> list[dict[str, Any]]:
         with self.connect_bootstrap() as db:
             cursor = db.cursor()
-            for sql in (ACTIVE_APP_CONNECTIONS_SQL, ACTIVE_APP_CONNECTIONS_LEGACY_SQL):
-                try:
-                    cursor.execute(sql)
-                    break
-                except Exception as exc:
-                    if sql is ACTIVE_APP_CONNECTIONS_LEGACY_SQL:
-                        raise
-                    if "sql_password_encrypted" not in str(exc):
-                        raise
-                    logger.warning(
-                        "sql_password_encrypted column missing; using legacy registry query"
+            if self._sql_password_encrypted_available is None:
+                self._sql_password_encrypted_available = detect_sql_password_encrypted_column(
+                    cursor
+                )
+                if self._sql_password_encrypted_available:
+                    logger.info(
+                        "orchestration.app_connections.sql_password_encrypted is available"
                     )
+                else:
+                    logger.info(
+                        "orchestration.app_connections uses legacy sql_password_hash column only"
+                    )
+
+            sql = active_app_connections_sql(
+                include_encrypted_password=self._sql_password_encrypted_available
+            )
+            cursor.execute(sql)
             columns = [col[0] for col in cursor.description]
             return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    def registry_sql(self) -> str:
+        include_encrypted = (
+            self._sql_password_encrypted_available
+            if self._sql_password_encrypted_available is not None
+            else False
+        )
+        return registry_app_connections_sql(include_encrypted_password=include_encrypted)
+
+    def runtime_credential_column(self) -> str:
+        return runtime_credential_column_label(
+            include_encrypted_password=self.sql_password_encrypted_available
+        )
 
 
 _connection_manager: Optional[ConnectionManager] = None

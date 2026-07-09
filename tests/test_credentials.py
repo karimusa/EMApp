@@ -100,7 +100,7 @@ def test_resolve_empty_uses_bootstrap_fallback():
 
 
 def test_resolve_empty_no_fallback_when_target_differs():
-    with pytest.raises(ConnectionCredentialError, match="no SQL login password"):
+    with pytest.raises(ConnectionCredentialError, match="sql_password_hash"):
         resolve_sql_login_password(
             "",
             secret_key="",

@@ -23,7 +23,7 @@ def _database_unavailable_message() -> str:
     return (
         "The application database is not reachable. "
         "Verify orchestration.app_connections credentials for PRIMARY "
-        "(sql_username / sql_password_encrypted) or contact your administrator."
+        "(sql_username / sql_password_hash) or contact your administrator."
     )
 
 

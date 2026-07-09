@@ -26,6 +26,7 @@ REQUIRED_MARKERS: dict[str, list[str]] = {
         "_runtime_sql_credentials",
         "is_unusable_stored_credential",
         "_log_bootstrap_vs_primary",
+        "detect_sql_password_encrypted_column",
     ],
     "app/db/credentials.py": [
         "is_unusable_stored_credential",
