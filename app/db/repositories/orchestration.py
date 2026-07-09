@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from app.db.live_schema import (
+    build_step_run_from_execution_log_row,
     normalize_execution_log_row,
     normalize_job_row,
     normalize_job_run_row,
@@ -14,6 +16,43 @@ from app.db.live_schema import (
 )
 from app.db.registry import PHASES
 from app.db.repositories.base import query_primary, use_mock_data
+
+logger = logging.getLogger(__name__)
+
+_STEP_RUNS_SQL = """
+    SELECT
+        step_run_id,
+        run_id,
+        step_id,
+        start_time,
+        end_time,
+        status,
+        log_message,
+        duration_sec,
+        approval_status,
+        approved_by,
+        approved_at,
+        error_message,
+        log_ref_id,
+        step_order,
+        step_name,
+        phase_code,
+        retry_attempt
+    FROM orchestration.step_runs
+"""
+
+_EXECUTION_LOG_SQL = """
+    SELECT TOP ({limit})
+        log_id,
+        process_name,
+        database_name,
+        step,
+        status,
+        message,
+        log_time
+    FROM orchestration.db_execution_log
+    ORDER BY log_time DESC, log_id DESC
+"""
 
 
 def build_validation_results(
@@ -60,6 +99,9 @@ def build_validation_results(
 
 
 class OrchestrationRepository:
+    def __init__(self) -> None:
+        self.last_step_run_source = "unknown"
+
     def get_phases(self) -> list[dict[str, str]]:
         return PHASES
 
@@ -118,47 +160,159 @@ class OrchestrationRepository:
             ORDER BY start_time DESC, run_id DESC
             """
         )
+        if rows:
+            return int(rows[0]["run_id"])
+
+        rows = query_primary(
+            """
+            SELECT TOP 1 run_id
+            FROM orchestration.step_runs
+            ORDER BY step_run_id DESC
+            """
+        )
         return int(rows[0]["run_id"]) if rows else None
+
+    def _rows_to_step_runs(self, rows: list[dict[str, Any]]) -> dict[int, dict[str, Any]]:
+        runs: dict[int, dict[str, Any]] = {}
+        for row in rows:
+            normalized = normalize_step_run_row(row)
+            normalized["data_source"] = "orchestration.step_runs"
+            runs[int(row["step_id"])] = normalized
+        return runs
+
+    def _fetch_step_runs_for_run(self, run_id: int) -> dict[int, dict[str, Any]]:
+        rows = query_primary(
+            f"""
+            {_STEP_RUNS_SQL}
+            WHERE run_id = ?
+            """,
+            (run_id,),
+        )
+        return self._rows_to_step_runs(rows)
+
+    def _fetch_latest_step_runs_by_step(self) -> dict[int, dict[str, Any]]:
+        rows = query_primary(
+            f"""
+            SELECT
+                sr.step_run_id,
+                sr.run_id,
+                sr.step_id,
+                sr.start_time,
+                sr.end_time,
+                sr.status,
+                sr.log_message,
+                sr.duration_sec,
+                sr.approval_status,
+                sr.approved_by,
+                sr.approved_at,
+                sr.error_message,
+                sr.log_ref_id,
+                sr.step_order,
+                sr.step_name,
+                sr.phase_code,
+                sr.retry_attempt
+            FROM orchestration.step_runs sr
+            INNER JOIN (
+                SELECT step_id, MAX(step_run_id) AS max_step_run_id
+                FROM orchestration.step_runs
+                GROUP BY step_id
+            ) latest ON sr.step_run_id = latest.max_step_run_id
+            """
+        )
+        return self._rows_to_step_runs(rows)
+
+    @staticmethod
+    def _step_match_keys(step: dict[str, Any]) -> set[str]:
+        keys = {str(step.get("step_name") or "").strip().lower()}
+        proc = str(step.get("execute_proc_name") or "").strip().lower()
+        if proc:
+            keys.add(proc)
+            keys.add(proc.rsplit(".", 1)[-1])
+        return {key for key in keys if key}
+
+    @classmethod
+    def _execution_log_matches_step(
+        cls,
+        step: dict[str, Any],
+        *,
+        log_step: str,
+        log_process: str,
+    ) -> bool:
+        step_keys = cls._step_match_keys(step)
+        if not step_keys:
+            return False
+        candidates = {log_step.lower(), log_process.lower()}
+        if log_process:
+            candidates.add(log_process.rsplit(".", 1)[-1].lower())
+        return bool(step_keys & {value for value in candidates if value})
+
+    def _fetch_execution_log_rows(self, limit: int = 500) -> list[dict[str, Any]]:
+        rows = query_primary(_EXECUTION_LOG_SQL.format(limit=int(limit)))
+        return [normalize_execution_log_row(row) for row in rows]
+
+    def _fetch_step_runs_from_execution_log(
+        self,
+        steps: list[dict[str, Any]],
+        *,
+        limit: int = 500,
+    ) -> dict[int, dict[str, Any]]:
+        rows = query_primary(_EXECUTION_LOG_SQL.format(limit=int(limit)))
+        runs: dict[int, dict[str, Any]] = {}
+
+        for row in rows:
+            log_step = str(row.get("step") or "").strip()
+            log_process = str(row.get("process_name") or "").strip()
+            for step in steps:
+                step_id = int(step["step_id"])
+                if step_id in runs:
+                    continue
+                if self._execution_log_matches_step(
+                    step,
+                    log_step=log_step,
+                    log_process=log_process,
+                ):
+                    runs[step_id] = build_step_run_from_execution_log_row(
+                        row,
+                        step_id=step_id,
+                    )
+        return runs
 
     def get_step_runs(self, run_id: int | None = None) -> dict[int, dict[str, Any]]:
         if use_mock_data():
             from app.dashboard import mock_data
 
+            self.last_step_run_source = "mock_data"
             return mock_data.get_step_runs()
+
+        steps = self.get_job_steps()
+        source = "none"
+        runs: dict[int, dict[str, Any]] = {}
 
         if run_id is None:
             run_id = self.get_current_run_id()
-        if run_id is None:
-            return {}
+        if run_id is not None:
+            runs = self._fetch_step_runs_for_run(run_id)
+            if runs:
+                source = f"orchestration.step_runs (run_id={run_id})"
 
-        rows = query_primary(
-            """
-            SELECT
-                step_run_id,
-                run_id,
-                step_id,
-                start_time,
-                end_time,
-                status,
-                log_message,
-                duration_sec,
-                approval_status,
-                approved_by,
-                approved_at,
-                error_message,
-                log_ref_id,
-                step_order,
-                step_name,
-                phase_code,
-                retry_attempt
-            FROM orchestration.step_runs
-            WHERE run_id = ?
-            """,
-            (run_id,),
+        if not runs:
+            runs = self._fetch_latest_step_runs_by_step()
+            if runs:
+                source = "orchestration.step_runs (latest per step)"
+
+        if not runs and steps:
+            runs = self._fetch_step_runs_from_execution_log(steps)
+            if runs:
+                source = "orchestration.db_execution_log"
+
+        self.last_step_run_source = source
+        logger.info(
+            "Dashboard step status source=%s step_cards=%d step_runs=%d data_mode=%s",
+            source,
+            len(steps),
+            len(runs),
+            "mock" if use_mock_data() else "live",
         )
-        runs: dict[int, dict[str, Any]] = {}
-        for row in rows:
-            runs[int(row["step_id"])] = normalize_step_run_row(row)
         return runs
 
     def get_validation_results(self) -> dict[int, dict[str, Any]]:
@@ -230,21 +384,7 @@ class OrchestrationRepository:
 
             return mock_data.get_execution_log()
 
-        rows = query_primary(
-            f"""
-            SELECT TOP ({int(limit)})
-                log_id,
-                process_name,
-                database_name,
-                step,
-                status,
-                message,
-                log_time
-            FROM orchestration.db_execution_log
-            ORDER BY log_time DESC, log_id DESC
-            """
-        )
-        return [normalize_execution_log_row(row) for row in rows]
+        return self._fetch_execution_log_rows(limit=limit)
 
     def get_run_metrics(self) -> dict[str, Any]:
         if use_mock_data():
@@ -270,12 +410,13 @@ class OrchestrationRepository:
             if rows:
                 return normalize_run_metrics_row(rows[0])
 
-        step_runs = self.get_step_runs(run_id).values()
-        total = len(step_runs)
+        step_runs = list(self.get_step_runs().values())
+        steps = self.get_job_steps()
+        total = len(steps) if steps else len(step_runs)
         success = sum(1 for r in step_runs if r["execution_status"] == "Success")
         failed = sum(1 for r in step_runs if r["execution_status"] == "Failed")
         running = sum(1 for r in step_runs if r["execution_status"] == "Running")
-        pending = sum(1 for r in step_runs if r["execution_status"] in ("Pending", "Skipped"))
+        pending = max(total - success - failed - running, 0)
         val_failed = sum(1 for r in step_runs if r["validation_status"] == "Failed")
         progress = round((success / total) * 100) if total else 0
         return {

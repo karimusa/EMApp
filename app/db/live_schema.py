@@ -228,11 +228,38 @@ def normalize_execution_log_row(row: dict[str, Any]) -> dict[str, Any]:
         "run_id": None,
         "phase": "",
         "step_name": row.get("step") or row.get("process_name") or "",
+        "process_name": row.get("process_name") or "",
         "message": row.get("message") or "",
         "status": normalize_execution_status(row.get("status")),
         "duration_seconds": None,
         "server_name": row.get("database_name") or row.get("process_name") or "",
         "logged_at": format_log_datetime(row.get("log_time")),
+    }
+
+
+def build_step_run_from_execution_log_row(
+    row: dict[str, Any],
+    *,
+    step_id: int,
+) -> dict[str, Any]:
+    execution_status = normalize_execution_status(row.get("status"))
+    validation_status = normalize_validation_status(
+        None,
+        execution_status=execution_status,
+    )
+    logged_at = format_log_datetime(row.get("log_time"))
+    return {
+        "step_run_id": None,
+        "run_id": None,
+        "step_id": step_id,
+        "execution_status": execution_status,
+        "validation_status": validation_status,
+        "last_message": row.get("message") or "",
+        "duration_seconds": None,
+        "started_at": logged_at,
+        "completed_at": logged_at,
+        "run_by": "",
+        "data_source": "orchestration.db_execution_log",
     }
 
 
