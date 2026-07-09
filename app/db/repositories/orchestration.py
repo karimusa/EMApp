@@ -4,8 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.db.formatters import format_log_datetime, format_run_datetime, format_timestamp
-from app.db.registry import PHASES, agent_job_for_proc, job_key
+from app.db.live_schema import (
+    normalize_execution_log_row,
+    normalize_job_row,
+    normalize_job_run_row,
+    normalize_job_step_row,
+    normalize_run_metrics_row,
+    normalize_step_run_row,
+)
+from app.db.registry import PHASES
 from app.db.repositories.base import query_primary, use_mock_data
 
 
@@ -64,22 +71,13 @@ class OrchestrationRepository:
 
         rows = query_primary(
             """
-            SELECT job_id, job_name, description, is_active, created_at
+            SELECT job_id, job_name, is_active, created_at
             FROM orchestration.jobs
             WHERE is_active = 1
             ORDER BY job_id
             """
         )
-        return [
-            {
-                "job_id": row["job_id"],
-                "job_name": row["job_name"],
-                "description": row.get("description") or "",
-                "is_active": bool(row["is_active"]),
-                "created_at": format_timestamp(row.get("created_at")),
-            }
-            for row in rows
-        ]
+        return [normalize_job_row(row) for row in rows]
 
     def get_job_steps(self) -> list[dict[str, Any]]:
         if use_mock_data():
@@ -92,44 +90,32 @@ class OrchestrationRepository:
             SELECT
                 step_id,
                 job_id,
-                step_name,
-                phase_code,
-                server_name,
                 step_order,
-                execute_proc_name,
-                validate_proc_name,
-                is_enabled
+                step_name,
+                parameters,
+                is_active,
+                step_type,
+                command,
+                server_name,
+                requires_approval,
+                on_failure_action,
+                retry_count,
+                retry_delay_sec,
+                execution_mode,
+                phase_code
             FROM orchestration.job_steps
-            WHERE is_enabled = 1
+            WHERE is_active = 1
             ORDER BY phase_code, step_order, step_id
             """
         )
-        steps = []
-        for row in rows:
-            agent_job = agent_job_for_proc(row["execute_proc_name"])
-            steps.append(
-                {
-                    "step_id": row["step_id"],
-                    "job_id": row["job_id"],
-                    "step_name": row["step_name"],
-                    "phase_code": row["phase_code"],
-                    "server_name": row["server_name"],
-                    "step_order": row["step_order"],
-                    "execute_proc_name": row["execute_proc_name"],
-                    "validate_proc_name": row["validate_proc_name"],
-                    "is_enabled": bool(row["is_enabled"]),
-                    "agent_job_name": agent_job,
-                    "agent_job_key": job_key(agent_job) if agent_job else None,
-                }
-            )
-        return steps
+        return [normalize_job_step_row(row) for row in rows]
 
     def get_current_run_id(self) -> int | None:
         rows = query_primary(
             """
             SELECT TOP 1 run_id
             FROM orchestration.job_runs
-            ORDER BY started_at DESC, run_id DESC
+            ORDER BY start_time DESC, run_id DESC
             """
         )
         return int(rows[0]["run_id"]) if rows else None
@@ -151,13 +137,20 @@ class OrchestrationRepository:
                 step_run_id,
                 run_id,
                 step_id,
-                execution_status,
-                validation_status,
-                last_message,
-                duration_seconds,
-                started_at,
-                completed_at,
-                run_by
+                start_time,
+                end_time,
+                status,
+                log_message,
+                duration_sec,
+                approval_status,
+                approved_by,
+                approved_at,
+                error_message,
+                log_ref_id,
+                step_order,
+                step_name,
+                phase_code,
+                retry_attempt
             FROM orchestration.step_runs
             WHERE run_id = ?
             """,
@@ -165,18 +158,7 @@ class OrchestrationRepository:
         )
         runs: dict[int, dict[str, Any]] = {}
         for row in rows:
-            runs[int(row["step_id"])] = {
-                "step_run_id": row["step_run_id"],
-                "run_id": row["run_id"],
-                "step_id": row["step_id"],
-                "execution_status": row["execution_status"],
-                "validation_status": row["validation_status"],
-                "last_message": row.get("last_message") or "",
-                "duration_seconds": row.get("duration_seconds"),
-                "started_at": format_log_datetime(row.get("started_at")),
-                "completed_at": format_log_datetime(row.get("completed_at")),
-                "run_by": row.get("run_by"),
-            }
+            runs[int(row["step_id"])] = normalize_step_run_row(row)
         return runs
 
     def get_validation_results(self) -> dict[int, dict[str, Any]]:
@@ -198,29 +180,18 @@ class OrchestrationRepository:
             SELECT
                 run_id,
                 job_id,
-                period_label,
+                start_time,
+                end_time,
                 status,
-                started_at,
-                completed_at,
-                duration_seconds,
-                started_by
+                triggered_by,
+                error_message,
+                phase_code,
+                run_name
             FROM orchestration.job_runs
-            ORDER BY started_at DESC, run_id DESC
+            ORDER BY start_time DESC, run_id DESC
             """
         )
-        return [
-            {
-                "run_id": row["run_id"],
-                "job_id": row["job_id"],
-                "period_label": row["period_label"],
-                "status": row["status"],
-                "started_at": format_run_datetime(row.get("started_at")),
-                "completed_at": format_run_datetime(row.get("completed_at")),
-                "duration_seconds": row.get("duration_seconds"),
-                "started_by": row.get("started_by") or "",
-            }
-            for row in rows
-        ]
+        return [normalize_job_run_row(row) for row in rows]
 
     def get_current_run(self) -> dict[str, Any]:
         if use_mock_data():
@@ -263,32 +234,17 @@ class OrchestrationRepository:
             f"""
             SELECT TOP ({int(limit)})
                 log_id,
-                run_id,
-                phase,
-                step_name,
-                message,
+                process_name,
+                database_name,
+                step,
                 status,
-                duration_seconds,
-                server_name,
-                logged_at
+                message,
+                log_time
             FROM orchestration.db_execution_log
-            ORDER BY logged_at DESC, log_id DESC
+            ORDER BY log_time DESC, log_id DESC
             """
         )
-        return [
-            {
-                "log_id": row["log_id"],
-                "run_id": row["run_id"],
-                "phase": row["phase"],
-                "step_name": row["step_name"],
-                "message": row["message"],
-                "status": row["status"],
-                "duration_seconds": row.get("duration_seconds"),
-                "server_name": row["server_name"],
-                "logged_at": format_log_datetime(row.get("logged_at")),
-            }
-            for row in rows
-        ]
+        return [normalize_execution_log_row(row) for row in rows]
 
     def get_run_metrics(self) -> dict[str, Any]:
         if use_mock_data():
@@ -301,36 +257,18 @@ class OrchestrationRepository:
             rows = query_primary(
                 """
                 SELECT TOP 1
-                    metric_id,
                     run_id,
                     total_steps,
                     success_count,
                     failed_count,
-                    running_count,
-                    pending_count,
-                    validation_failed_count,
-                    progress_pct,
-                    updated_at
+                    duration_sec
                 FROM orchestration.run_metrics
                 WHERE run_id = ?
-                ORDER BY updated_at DESC
                 """,
                 (run_id,),
             )
             if rows:
-                row = rows[0]
-                return {
-                    "metric_id": row["metric_id"],
-                    "run_id": row["run_id"],
-                    "total_steps": row["total_steps"],
-                    "success_count": row["success_count"],
-                    "failed_count": row["failed_count"],
-                    "running_count": row["running_count"],
-                    "pending_count": row["pending_count"],
-                    "validation_failed_count": row["validation_failed_count"],
-                    "progress_pct": row["progress_pct"],
-                    "updated_at": format_log_datetime(row.get("updated_at")),
-                }
+                return normalize_run_metrics_row(rows[0])
 
         step_runs = self.get_step_runs(run_id).values()
         total = len(step_runs)
@@ -341,7 +279,7 @@ class OrchestrationRepository:
         val_failed = sum(1 for r in step_runs if r["validation_status"] == "Failed")
         progress = round((success / total) * 100) if total else 0
         return {
-            "metric_id": 1,
+            "metric_id": run_id,
             "run_id": run_id,
             "total_steps": total,
             "success_count": success,

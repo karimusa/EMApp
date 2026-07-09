@@ -31,3 +31,8 @@ class AuthService:
                 for user in data.get_users()
             ]
         return self._repo.list_users()
+
+    def touch_last_login(self, user_id: int) -> None:
+        if use_mock_data():
+            return
+        self._repo.touch_last_login(user_id)

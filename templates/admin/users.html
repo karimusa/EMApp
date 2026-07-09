@@ -24,7 +24,7 @@
                 <thead>
                     <tr>
                         <th>ID</th><th>Username</th><th>Role</th><th>Status</th>
-                        <th>Created</th><th>Updated</th><th class="ta-right">Actions</th>
+                        <th>Created</th><th>Last login</th><th class="ta-right">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -52,7 +52,7 @@
                             {% endif %}
                         </td>
                         <td class="mono muted">{{ u.created_at }}</td>
-                        <td class="mono muted">{{ u.updated_at or '—' }}</td>
+                        <td class="mono muted">{{ u.last_login or u.updated_at or '—' }}</td>
                         <td class="ta-right">
                             <button class="btn-icon-sm" type="button" title="Edit user"
                                     data-user-action="Edit" data-user-name="{{ u.username }}"><i class="bi bi-pencil"></i></button>

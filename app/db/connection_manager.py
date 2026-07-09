@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Bump when PRIMARY runtime credential behavior changes (visible in startup logs).
-RUNTIME_CREDENTIAL_BUILD_ID = "legacy-schema-compat-2026-07-09"
+RUNTIME_CREDENTIAL_BUILD_ID = "live-schema-compat-2026-07-09"
 
 # Backward-compatible exports for tests and callers.
 APP_CONNECTIONS_SELECT = active_app_connections_sql(include_encrypted_password=False).replace(

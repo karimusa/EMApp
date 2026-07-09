@@ -32,6 +32,14 @@ REQUIRED_MARKERS: dict[str, list[str]] = {
         "is_unusable_stored_credential",
         "BOOTSTRAP_PASSWORD",
     ],
+    "app/db/live_schema.py": [
+        "USERS_COLUMNS",
+        "normalize_user_row",
+    ],
+    "app/db/repositories/users.py": [
+        "last_login",
+        "USERS_COLUMNS",
+    ],
     "app/db/repositories/base.py": [
         "ensure_primary_validated",
         "sql_connection_error_message",
