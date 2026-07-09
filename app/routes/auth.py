@@ -77,9 +77,13 @@ def login():
                 else:
                     if not use_mock_data():
                         try:
+                            auth_service.upgrade_legacy_password_if_needed(user, password)
                             auth_service.touch_last_login(user["user_id"])
                         except Exception:
-                            logger.exception("Failed to update last_login for user_id=%s", user["user_id"])
+                            logger.exception(
+                                "Failed to persist login metadata for user_id=%s",
+                                user["user_id"],
+                            )
                     session.clear()
                     session["user_id"] = user["user_id"]
                     session["username"] = user["username"]

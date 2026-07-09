@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from app.auth.passwords import is_legacy_sha256_password_hash
 from app.dashboard import data
 from app.db.repositories.base import use_mock_data
 from app.db.repositories.users import UserRepository
@@ -23,6 +24,18 @@ class AuthService:
 
     def verify_password(self, user: dict[str, Any], password: str) -> bool:
         return self._repo.verify_password(user, password)
+
+    def upgrade_legacy_password_if_needed(
+        self,
+        user: dict[str, Any],
+        password: str,
+    ) -> None:
+        if use_mock_data():
+            return
+        stored = user.get("password_hash")
+        if not is_legacy_sha256_password_hash(stored):
+            return
+        self._repo.upgrade_password_hash(user["user_id"], password)
 
     def list_users(self) -> list[dict[str, Any]]:
         if use_mock_data():
