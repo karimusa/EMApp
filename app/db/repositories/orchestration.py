@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import logging
 from typing import Any
 
 from app.db.live_schema import (
@@ -467,6 +468,12 @@ class OrchestrationRepository:
         return normalize_job_step_row(rows[0]) if rows else None
 
     def create_job_run(self, *, job_id: int, triggered_by: str, run_name: str) -> int:
+        logger.info(
+            "create_job_run job_id=%s triggered_by=%s run_name=%s",
+            job_id,
+            triggered_by,
+            run_name,
+        )
         run_id = query_scalar_primary(
             """
             INSERT INTO orchestration.job_runs (
@@ -478,7 +485,19 @@ class OrchestrationRepository:
             (job_id, triggered_by, run_name),
         )
         if run_id is None:
+            rows = query_primary(
+                """
+                SELECT TOP 1 run_id
+                FROM orchestration.job_runs
+                WHERE job_id = ? AND triggered_by = ?
+                ORDER BY run_id DESC
+                """,
+                (job_id, triggered_by),
+            )
+            run_id = rows[0]["run_id"] if rows else None
+        if run_id is None:
             raise RuntimeError("Failed to create job run.")
+        logger.info("create_job_run success run_id=%s", run_id)
         return int(run_id)
 
     def stop_job_run(self, run_id: int) -> None:
@@ -535,12 +554,18 @@ class OrchestrationRepository:
         step: dict[str, Any],
         actor: str,
     ) -> None:
-        exec_primary(
+        step_id = int(step["step_id"])
+        existing = query_primary(
             """
-            IF EXISTS (
-                SELECT 1 FROM orchestration.step_runs
-                WHERE run_id = ? AND step_id = ?
-            )
+            SELECT step_run_id
+            FROM orchestration.step_runs
+            WHERE run_id = ? AND step_id = ?
+            """,
+            (run_id, step_id),
+        )
+        if existing:
+            exec_primary(
+                """
                 UPDATE orchestration.step_runs
                 SET status = 'Running',
                     start_time = SYSUTCDATETIME(),
@@ -551,31 +576,35 @@ class OrchestrationRepository:
                     phase_code = ?,
                     approved_by = ?
                 WHERE run_id = ? AND step_id = ?
-            ELSE
+                """,
+                (
+                    step.get("step_order") or 0,
+                    step["step_name"],
+                    step.get("phase_code") or "",
+                    actor,
+                    run_id,
+                    step_id,
+                ),
+            )
+        else:
+            exec_primary(
+                """
                 INSERT INTO orchestration.step_runs (
                     run_id, step_id, start_time, status, log_message,
                     step_order, step_name, phase_code, approved_by
                 )
                 VALUES (?, ?, SYSUTCDATETIME(), 'Running', 'Execution started.',
                         ?, ?, ?, ?)
-            """,
-            (
-                run_id,
-                step["step_id"],
-                step.get("step_order") or 0,
-                step["step_name"],
-                step.get("phase_code") or "",
-                actor,
-                run_id,
-                step["step_id"],
-                run_id,
-                step["step_id"],
-                step.get("step_order") or 0,
-                step["step_name"],
-                step.get("phase_code") or "",
-                actor,
-            ),
-        )
+                """,
+                (
+                    run_id,
+                    step_id,
+                    step.get("step_order") or 0,
+                    step["step_name"],
+                    step.get("phase_code") or "",
+                    actor,
+                ),
+            )
 
     def _finalize_step_run(
         self,
@@ -633,6 +662,14 @@ class OrchestrationRepository:
         if not proc_name:
             raise ValueError(f"Step {step['step_id']} has no execute procedure configured.")
 
+        logger.info(
+            "execute_step_procedure run_id=%s step_id=%s env=%s proc=%s actor=%s",
+            run_id,
+            step["step_id"],
+            environment_name,
+            proc_name,
+            actor,
+        )
         self._upsert_step_run_running(run_id=run_id, step=step, actor=actor)
         sql = self._proc_sql(proc_name)
         try:

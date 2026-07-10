@@ -1,6 +1,4 @@
-// Dashboard interactions — Step 2 (mock data, no execution logic yet).
-// Handles phase tabs, view mode, search/filter, step detail + full-log modals,
-// and preference persistence. Run/Validate surface a notice until later steps.
+// Dashboard interactions — phase tabs, filters, modals, and live execution controls.
 
 (function () {
     "use strict";
@@ -19,9 +17,29 @@
 
     const LIVE_DB_MSG = window.rraLiveDbMessage || "This action requires a live connection to MonthEndOrchestrationDB.";
     const dashCfg = window.rraDashboard || {};
-    const live = Boolean(dashCfg.liveDbAvailable);
+    const live = Boolean(dashCfg.executionEnabled || dashCfg.liveDbAvailable);
     let activeRunId = dashCfg.activeRunId || null;
     const apiBase = dashCfg.apiBase || "/api/v1";
+
+    function disabledReason(button) {
+        return button.getAttribute("data-disabled-reason")
+            || dashCfg.blockReason
+            || dashCfg.liveUnavailableMessage
+            || LIVE_DB_MSG;
+    }
+
+    function bindDisabledFeedback(selector) {
+        document.querySelectorAll(selector).forEach(function (button) {
+            button.addEventListener("click", function (event) {
+                if (!button.disabled) {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                toast(disabledReason(button), "error");
+            });
+        });
+    }
 
     // ---- Toast helper (shared with other console pages) ----
     let stack = document.querySelector(".toast-stack");
@@ -96,6 +114,20 @@
         reloadAfterSuccess("Step executed.");
     }
 
+    async function syncExecutionState() {
+        try {
+            const state = await apiRequest("GET", apiBase + "/execution/state");
+            if (state && state.active_run_id) {
+                activeRunId = state.active_run_id;
+            }
+            if (state && state.build_id && dashCfg.buildId && state.build_id !== dashCfg.buildId) {
+                toast("Dashboard build mismatch. Restart the app after git pull.", "error");
+            }
+        } catch (err) {
+            console.warn("Could not refresh execution state:", err.message);
+        }
+    }
+
     async function validateStep(stepId) {
         await apiRequest("POST", apiBase + "/steps/" + stepId + "/validate", {
             run_id: activeRunId,
@@ -103,7 +135,8 @@
         reloadAfterSuccess("Step validated.");
     }
 
-    // ---- Filtering (scoped to the active phase panel) ----
+    bindDisabledFeedback("#startRunBtn, #stopRunBtn, #runSequenceBtn, .btn-run, .btn-validate");
+    syncExecutionState();
     function activePanel() {
         return panels.find((p) => !p.classList.contains("d-none"));
     }

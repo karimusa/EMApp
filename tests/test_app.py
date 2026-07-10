@@ -142,6 +142,8 @@ class TestAdminPermissions:
         assert b"window.rraDashboard" in response.data
         assert b"Stop Run" in response.data
         assert b"Run Sequence" in response.data
+        assert b"dashboard-execution-2026-07-10" in response.data
+        assert b"execution-status-bar" in response.data
 
 
 class TestApi:

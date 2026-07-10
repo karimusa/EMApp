@@ -3,6 +3,8 @@
 Mock responses today use the same shapes the live SQL repositories will return.
 """
 
+import logging
+
 from flask import Blueprint, jsonify, request, session
 
 from app.admin.errors import LiveDataRequiredError, UserAdminError
@@ -17,6 +19,7 @@ api_bp = Blueprint("api", __name__, url_prefix="/api/v1")
 dashboard_service = DashboardService()
 auth_service = AuthService()
 execution_service = ExecutionService()
+logger = logging.getLogger(__name__)
 
 
 def _require_admin():
@@ -61,15 +64,23 @@ def start_run():
     if denied:
         return denied
     payload = request.get_json(silent=True) or {}
+    logger.info(
+        "API start_run user=%s payload=%s",
+        session.get("username"),
+        payload,
+    )
     try:
         result = execution_service.start_run(
             actor=session.get("username") or "admin",
             run_name=payload.get("run_name"),
         )
+        logger.info("API start_run success run_id=%s", result.get("run_id"))
         return jsonify({"run": result, "data_source": "live"}), 201
     except (LiveExecutionRequiredError, ExecutionError, ConnectionError) as exc:
+        logger.warning("API start_run failed: %s", exc)
         return _execution_error_response(exc)
     except Exception as exc:
+        logger.exception("API start_run error")
         return _execution_error_response(exc)
 
 
@@ -79,15 +90,19 @@ def stop_run(run_id: int):
     denied = _require_admin()
     if denied:
         return denied
+    logger.info("API stop_run user=%s run_id=%s", session.get("username"), run_id)
     try:
         result = execution_service.stop_run(
             run_id=run_id,
             actor=session.get("username") or "admin",
         )
+        logger.info("API stop_run success run_id=%s", run_id)
         return jsonify({"run": result, "data_source": "live"})
     except (LiveExecutionRequiredError, ExecutionError, ConnectionError) as exc:
+        logger.warning("API stop_run failed: %s", exc)
         return _execution_error_response(exc)
     except Exception as exc:
+        logger.exception("API stop_run error")
         return _execution_error_response(exc)
 
 

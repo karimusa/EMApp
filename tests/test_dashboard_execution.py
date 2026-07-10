@@ -78,16 +78,26 @@ class TestDashboardExecutionApi:
 
 
 class TestExecutionServiceRules:
-    @patch("app.dashboard.execution.use_mock_data", return_value=True)
-    def test_start_run_blocked_in_mock_mode(self, _mock_live):
+    @patch("app.dashboard.execution.get_execution_runtime")
+    def test_start_run_blocked_in_mock_mode(self, mock_runtime):
+        mock_runtime.return_value = {
+            "execution_block_reason": "Live SQL connection unavailable.",
+            "execution_enabled": False,
+        }
         service = ExecutionService()
         with pytest.raises(LiveExecutionRequiredError):
             service.start_run(actor="admin")
 
-    @patch("app.dashboard.execution.use_mock_data", return_value=False)
+    @patch("app.dashboard.execution.get_execution_runtime")
+    @patch("app.dashboard.execution.execution_enabled", return_value=True)
+    @patch.object(ExecutionService, "_blocking_run_for_start")
     @patch.object(ExecutionService, "_active_run")
-    def test_start_run_blocks_when_run_in_progress(self, mock_active, _mock_live):
-        mock_active.return_value = {"run_id": 1, "status": "Running"}
+    def test_start_run_blocks_when_run_in_progress(
+        self, mock_active, mock_blocking, _mock_enabled, mock_runtime
+    ):
+        mock_runtime.return_value = {"execution_block_reason": None, "execution_enabled": True}
+        mock_blocking.return_value = {"run_id": 1, "status": "In Progress"}
+        mock_active.return_value = {"run_id": 1, "status": "In Progress"}
         service = ExecutionService()
         with pytest.raises(ExecutionError, match="already in progress"):
             service.start_run(actor="admin")

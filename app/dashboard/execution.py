@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import Any
 
 from app.dashboard.errors import ExecutionError, LiveExecutionRequiredError
-from app.db.repositories.base import use_mock_data
+from app.dashboard.runtime import execution_enabled, get_execution_runtime
 from app.db.repositories.orchestration import OrchestrationRepository
+
+logger = logging.getLogger(__name__)
 
 _ACTIVE_RUN_STATUSES = frozenset({"Running", "In Progress", "Pending"})
 _BLOCKING_START_STATUSES = frozenset({"Running", "In Progress"})
@@ -18,11 +21,10 @@ class ExecutionService:
         self._repo = OrchestrationRepository()
 
     def _require_live_execution(self) -> None:
-        if use_mock_data():
-            raise LiveExecutionRequiredError(
-                "Live SQL connection unavailable. Run, validate, stop, and sequence "
-                "actions require MonthEndOrchestrationDB."
-            )
+        reason = get_execution_runtime().get("execution_block_reason")
+        if reason:
+            logger.warning("Execution blocked: %s", reason)
+            raise LiveExecutionRequiredError(reason)
 
     def _get_jobs(self) -> list[dict[str, Any]]:
         jobs = self._repo.get_jobs()
@@ -45,19 +47,37 @@ class ExecutionService:
                 return run
         return None
 
+    def _blocking_run_for_start(self) -> dict[str, Any] | None:
+        runs = self._repo.get_job_runs()
+        for run in runs:
+            if run["status"] in _BLOCKING_START_STATUSES:
+                return run
+        return None
+
     def get_execution_state(self) -> dict[str, Any]:
+        runtime = get_execution_runtime()
         active = self._active_run()
-        return {
-            "live_db_available": not use_mock_data(),
+        state = {
+            **runtime,
             "active_run_id": active["run_id"] if active else None,
             "active_run_status": active["status"] if active else None,
-            "can_stop": active is not None,
-            "can_sequence": active is not None,
+            "can_stop": execution_enabled() and active is not None,
+            "can_sequence": execution_enabled() and active is not None,
+            "can_start": execution_enabled() and self._blocking_run_for_start() is None,
         }
+        logger.info(
+            "Execution state build=%s git=%s enabled=%s active_run=%s",
+            state.get("build_id"),
+            state.get("git_head"),
+            state.get("execution_enabled"),
+            state.get("active_run_id"),
+        )
+        return state
 
     def start_run(self, *, actor: str, run_name: str | None = None) -> dict[str, Any]:
+        logger.info("start_run requested by=%s run_name=%s", actor, run_name)
         self._require_live_execution()
-        if self._active_run():
+        if self._blocking_run_for_start():
             raise ExecutionError("A run is already in progress. Stop it before starting a new one.")
         jobs = self._get_jobs()
         label = (run_name or "").strip() or datetime.utcnow().strftime("%B %Y")
@@ -66,6 +86,7 @@ class ExecutionService:
             triggered_by=actor,
             run_name=label,
         )
+        logger.info("start_run created run_id=%s label=%s actor=%s", run_id, label, actor)
         return {
             "run_id": run_id,
             "status": "Running",
@@ -73,15 +94,18 @@ class ExecutionService:
         }
 
     def stop_run(self, *, run_id: int | None, actor: str) -> dict[str, Any]:
+        logger.info("stop_run requested by=%s run_id=%s", actor, run_id)
         self._require_live_execution()
         resolved_run_id = self._resolve_run_id(run_id)
         active = self._active_run()
         if not active or int(active["run_id"]) != int(resolved_run_id):
             raise ExecutionError("Only an in-progress run can be stopped.")
         self._repo.stop_job_run(resolved_run_id)
+        logger.info("stop_run completed run_id=%s actor=%s", resolved_run_id, actor)
         return {"run_id": resolved_run_id, "status": "Stopped", "stopped_by": actor}
 
     def run_step(self, step_id: int, *, run_id: int | None, actor: str) -> dict[str, Any]:
+        logger.info("run_step requested by=%s step_id=%s run_id=%s", actor, step_id, run_id)
         self._require_live_execution()
         resolved_run_id = self._resolve_run_id(run_id)
         step = self._repo.get_step_by_id(step_id)
@@ -98,7 +122,14 @@ class ExecutionService:
         except ConnectionError:
             raise
         except Exception as exc:
+            logger.exception("run_step failed step_id=%s run_id=%s", step_id, resolved_run_id)
             raise ExecutionError(str(exc)) from exc
+        logger.info(
+            "run_step completed step_id=%s run_id=%s status=%s",
+            step_id,
+            resolved_run_id,
+            result.get("execution_status"),
+        )
         return {
             "run_id": resolved_run_id,
             "step_id": step_id,
@@ -106,6 +137,7 @@ class ExecutionService:
         }
 
     def validate_step(self, step_id: int, *, run_id: int | None, actor: str) -> dict[str, Any]:
+        logger.info("validate_step requested by=%s step_id=%s run_id=%s", actor, step_id, run_id)
         self._require_live_execution()
         resolved_run_id = self._resolve_run_id(run_id)
         step = self._repo.get_step_by_id(step_id)
@@ -116,6 +148,12 @@ class ExecutionService:
             run_id=resolved_run_id,
             actor=actor,
         )
+        logger.info(
+            "validate_step completed step_id=%s run_id=%s status=%s",
+            step_id,
+            resolved_run_id,
+            result.get("validation_status"),
+        )
         return {
             "run_id": resolved_run_id,
             "step_id": step_id,
@@ -123,6 +161,7 @@ class ExecutionService:
         }
 
     def run_sequence(self, *, run_id: int | None, actor: str) -> dict[str, Any]:
+        logger.info("run_sequence requested by=%s run_id=%s", actor, run_id)
         self._require_live_execution()
         resolved_run_id = self._resolve_run_id(run_id)
         steps = sorted(
