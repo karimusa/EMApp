@@ -250,42 +250,39 @@ if (-not $env:FLASK_ENV) {
 Set-Location -Path $ProjectRoot
 
 $browserOpened = $false
-$browserJob = $null
-if (-not $NoBrowser) {
-    $browserJob = Start-Job -ScriptBlock {
-        param($PortNumber, $OpenUrl, $SharedScriptPath)
-        . $SharedScriptPath
-        if (Wait-AppPortReady -Port $PortNumber -TimeoutSeconds 60) {
-            return (Start-DevBrowser -Url $OpenUrl)
-        }
-        return $false
-    } -ArgumentList $Port, $appUrl, (Join-Path $ProjectRoot 'scripts\dev_shared.ps1')
-}
+$appStarted = $false
 
 try {
-    Set-DevStepStatus -Step $startStep -Status 'ok'
-    Write-DevStepLine -Step $startStep
-    $exitCode = Invoke-DevForegroundCommand -FilePath $venvPython -Arguments @($runScript)
+    $exitCode = Invoke-DevForegroundCommand `
+        -FilePath $venvPython `
+        -Arguments @($runScript) `
+        -WorkingDirectory $ProjectRoot `
+        -ReadyPort $Port `
+        -ReadyTimeoutSeconds 60 `
+        -OnPortReady {
+            $script:appStarted = $true
+            Set-DevStepStatus -Step $startStep -Status 'ok'
+            Write-DevStepLine -Step $startStep
+            Write-Host ''
+            Write-Host ('EMApp is running at {0}/login' -f $appUrl) -ForegroundColor Green
+            Write-Host 'Press Ctrl+C to stop.' -ForegroundColor Gray
+            Write-Host ''
+            if (-not $NoBrowser) {
+                $script:browserOpened = Start-DevBrowser -Url $appUrl
+            }
+        }
+
+    if (-not $appStarted) {
+        throw ('EMApp exited before port {0} was ready (exit code {1}).' -f $Port, $exitCode)
+    }
     if ($exitCode -ne 0) {
         throw ('EMApp exited with code {0}' -f $exitCode)
     }
 } catch {
     Set-DevStepStatus -Step $startStep -Status 'fail' -Detail $_.Exception.Message
     Set-DevStepStatus -Step $browserStep -Status 'skip'
-    if ($browserJob) {
-        Stop-Job -Job $browserJob -ErrorAction SilentlyContinue
-        Remove-Job -Job $browserJob -Force -ErrorAction SilentlyContinue
-    }
     Write-DevSummary -Steps $steps
     throw
-} finally {
-    if ($browserJob) {
-        $browserResult = Receive-Job -Job $browserJob -ErrorAction SilentlyContinue
-        Remove-Job -Job $browserJob -Force -ErrorAction SilentlyContinue
-        if ($browserResult) {
-            $browserOpened = $true
-        }
-    }
 }
 
 if ($NoBrowser) {
@@ -298,5 +295,7 @@ if ($NoBrowser) {
 Write-DevStepLine -Step $browserStep
 
 Write-DevSummary -Steps $steps
-Write-Host 'Ready!' -ForegroundColor Green
+if ($appStarted) {
+    Write-Host 'Stopped.' -ForegroundColor Gray
+}
 Write-Host ''
