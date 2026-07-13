@@ -643,7 +643,9 @@ class OrchestrationRepository:
     def _proc_sql(proc_name: str) -> str:
         import re
 
-        name = (proc_name or "").strip()
+        from app.db.registry import normalize_proc_name
+
+        name = normalize_proc_name(proc_name)
         if not name:
             raise ValueError("Stored procedure name is required.")
         if not re.match(r"^[A-Za-z0-9_.]+$", name):

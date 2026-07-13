@@ -103,12 +103,23 @@ def job_key(job_name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", job_name.lower()).strip("-")
 
 
+def normalize_proc_name(value: str) -> str:
+    """Strip EXEC prefix and whitespace from a command/procedure name."""
+    text = (value or "").strip()
+    if text.upper().startswith("EXEC "):
+        text = text[5:].strip()
+    return text
+
+
+_REGISTRY_BY_STEP_NAME = {step.step_name.lower(): step for step in STEP_REGISTRY}
+
+
 def agent_job_for_proc(execute_proc: str) -> str | None:
-    return _AGENT_BY_PROC.get(execute_proc)
+    return _AGENT_BY_PROC.get(normalize_proc_name(execute_proc))
 
 
 def environment_for_command(command: str) -> str:
-    text = (command or "").strip()
+    text = normalize_proc_name(command)
     for step in STEP_REGISTRY:
         if step.execute_proc == text:
             return step.environment_name
@@ -116,11 +127,21 @@ def environment_for_command(command: str) -> str:
 
 
 def registry_step_for_command(command: str) -> StepDef | None:
-    text = (command or "").strip()
+    text = normalize_proc_name(command)
+    if not text:
+        return None
     for step in STEP_REGISTRY:
         if step.execute_proc == text:
             return step
+    lowered = text.lower()
+    for step in STEP_REGISTRY:
+        if step.execute_proc.lower() == lowered:
+            return step
     return None
+
+
+def registry_step_for_name(step_name: str) -> StepDef | None:
+    return _REGISTRY_BY_STEP_NAME.get((step_name or "").strip().lower())
 
 
 def trigger_for_job(job_name: str) -> dict[str, str | None]:

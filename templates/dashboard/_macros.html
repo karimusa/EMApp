@@ -119,11 +119,15 @@
         {% if is_admin %}
         <div class="step-actions">
             <button class="btn-run" type="button" data-step-id="{{ step.step_id }}" data-step-name="{{ step.step_name }}"
-                    {% if not live_db_available %}disabled title="Live SQL connection required"{% endif %}>
+                    {% if not live_db_available or not step.execute_proc_name %}disabled
+                    {% if not live_db_available %}title="Live SQL connection required"
+                    {% elif not step.execute_proc_name %}title="No execute procedure configured" data-disabled-reason="No execute procedure configured"{% endif %}>
                 <i class="bi bi-play-fill"></i> Run
             </button>
             <button class="btn-validate" type="button" data-step-id="{{ step.step_id }}" data-step-name="{{ step.step_name }}"
-                    {% if not live_db_available %}disabled title="Live SQL connection required"{% endif %}>
+                    {% if not live_db_available or not step.validate_proc_name %}disabled
+                    {% if not live_db_available %}title="Live SQL connection required"
+                    {% elif not step.validate_proc_name %}title="No validate procedure configured" data-disabled-reason="No validate procedure configured"{% endif %}>
                 <i class="bi bi-patch-check"></i> Validate
             </button>
         </div>

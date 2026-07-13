@@ -47,6 +47,38 @@ def test_normalize_user_row_maps_last_login_to_updated_at_alias():
     assert "updated_at" not in USERS_COLUMNS
 
 
+def test_normalize_job_step_row_resolves_exec_prefix_command():
+    row = {
+        "step_id": 1,
+        "job_id": 1,
+        "step_order": 1,
+        "step_name": "Send Start Email",
+        "is_active": True,
+        "command": "EXEC orchestration.sp_send_month_end_start_email",
+        "server_name": "SPUS001BDBEXT",
+        "phase_code": "PRE",
+    }
+    normalized = normalize_job_step_row(row)
+    assert normalized["execute_proc_name"] == "orchestration.sp_send_month_end_start_email"
+    assert normalized["validate_proc_name"] == "orchestration.sp_validate_month_end_start_email"
+
+
+def test_normalize_job_step_row_falls_back_to_step_name():
+    row = {
+        "step_id": 2,
+        "job_id": 1,
+        "step_order": 2,
+        "step_name": "Send Start Email",
+        "is_active": True,
+        "command": "",
+        "server_name": "SPUS001BDBEXT",
+        "phase_code": "PRE",
+    }
+    normalized = normalize_job_step_row(row)
+    assert normalized["execute_proc_name"] == "orchestration.sp_send_month_end_start_email"
+    assert normalized["validate_proc_name"] == "orchestration.sp_validate_month_end_start_email"
+
+
 def test_normalize_job_step_row_uses_command_and_is_active():
     row = {
         "step_id": 1,

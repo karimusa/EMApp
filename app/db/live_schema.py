@@ -10,7 +10,14 @@ from datetime import datetime
 from typing import Any
 
 from app.db.formatters import format_log_datetime, format_run_datetime, format_timestamp
-from app.db.registry import STEP_REGISTRY, agent_job_for_proc, job_key, registry_step_for_command
+from app.db.registry import (
+    STEP_REGISTRY,
+    agent_job_for_proc,
+    job_key,
+    normalize_proc_name,
+    registry_step_for_command,
+    registry_step_for_name,
+)
 
 _REGISTRY_BY_COMMAND = {step.execute_proc: step for step in STEP_REGISTRY}
 
@@ -159,10 +166,16 @@ def normalize_job_row(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def normalize_job_step_row(row: dict[str, Any]) -> dict[str, Any]:
-    command = _coerce_text(row.get("command"))
-    registry_step = _REGISTRY_BY_COMMAND.get(command) or registry_step_for_command(command)
+    command = normalize_proc_name(_coerce_text(row.get("command")))
+    registry_step = (
+        _REGISTRY_BY_COMMAND.get(command)
+        or registry_step_for_command(command)
+        or registry_step_for_name(row.get("step_name"))
+    )
     execute_proc_name = command or (registry_step.execute_proc if registry_step else "")
     validate_proc_name = registry_step.validate_proc if registry_step else ""
+    if registry_step and not command:
+        execute_proc_name = registry_step.execute_proc
     agent_job = registry_step.agent_job if registry_step else agent_job_for_proc(execute_proc_name)
     environment_name = registry_step.environment_name if registry_step else "PRIMARY"
     return {

@@ -104,7 +104,10 @@
         window.setTimeout(function () { window.location.reload(); }, 500);
     }
 
-    async function runStep(stepId) {
+    async function runStep(stepId, procName) {
+        if (!procName) {
+            throw new Error("No execute procedure is configured for this step.");
+        }
         const payload = await apiRequest("POST", apiBase + "/steps/" + stepId + "/run", {
             run_id: activeRunId,
         });
@@ -128,7 +131,10 @@
         }
     }
 
-    async function validateStep(stepId) {
+    async function validateStep(stepId, procName) {
+        if (!procName) {
+            throw new Error("No validate procedure is configured for this step.");
+        }
         await apiRequest("POST", apiBase + "/steps/" + stepId + "/validate", {
             run_id: activeRunId,
         });
@@ -242,11 +248,15 @@
     const stepModal = document.getElementById("stepModal");
     let activeStepId = null;
     let activeStepName = null;
+    let activeExecProc = "";
+    let activeValProc = "";
 
     function openStepModal(card) {
         if (!stepModal) return;
         activeStepId = Number(card.dataset.stepId);
         activeStepName = card.dataset.stepName;
+        activeExecProc = card.dataset.execProc || "";
+        activeValProc = card.dataset.valProc || "";
         setText("stepModalOrder", card.dataset.order);
         setText("stepModalTitle", card.dataset.stepName);
         setText("stepModalPhase", "Phase · " + card.dataset.phase);
@@ -254,8 +264,8 @@
         setText("stepModalServer", card.dataset.server);
         setText("stepModalLastRun", card.dataset.lastRun);
         setText("stepModalDuration", card.dataset.duration);
-        setText("stepModalExecProc", card.dataset.execProc);
-        setText("stepModalValProc", card.dataset.valProc);
+        setText("stepModalExecProc", card.dataset.execProc ? ("EXEC " + card.dataset.execProc) : "");
+        setText("stepModalValProc", card.dataset.valProc ? ("EXEC " + card.dataset.valProc) : "");
         const badges = document.getElementById("stepModalBadges");
         const src = card.querySelector(".step-badges");
         if (badges && src) badges.innerHTML = src.innerHTML;
@@ -288,6 +298,15 @@
             }
         }
 
+        if (modalRun) {
+            modalRun.disabled = !live || !activeExecProc;
+            modalRun.title = activeExecProc ? "" : "No execute procedure configured";
+        }
+        if (modalValidate) {
+            modalValidate.disabled = !live || !activeValProc;
+            modalValidate.title = activeValProc ? "" : "No validate procedure configured";
+        }
+
         openModal(stepModal);
     }
 
@@ -313,14 +332,14 @@
     const modalValidate = document.getElementById("stepModalValidate");
     if (modalRun) {
         modalRun.addEventListener("click", function () {
-            if (!guardLive() || !activeStepId) return;
-            runStep(activeStepId).catch(function (err) { toast(err.message, "error"); });
+            if (!guardLive() || !activeStepId || modalRun.disabled) return;
+            runStep(activeStepId, activeExecProc).catch(function (err) { toast(err.message, "error"); });
         });
     }
     if (modalValidate) {
         modalValidate.addEventListener("click", function () {
-            if (!guardLive() || !activeStepId) return;
-            validateStep(activeStepId).catch(function (err) { toast(err.message, "error"); });
+            if (!guardLive() || !activeStepId || modalValidate.disabled) return;
+            validateStep(activeStepId, activeValProc).catch(function (err) { toast(err.message, "error"); });
         });
     }
 
@@ -348,7 +367,9 @@
             if (!guardLive() || btn.disabled) return;
             const stepId = Number(btn.dataset.stepId);
             if (!stepId) return;
-            runStep(stepId).catch(function (err) { toast(err.message, "error"); });
+            const card = btn.closest(".step-card");
+            const execProc = card ? card.dataset.execProc : "";
+            runStep(stepId, execProc).catch(function (err) { toast(err.message, "error"); });
         });
     });
     document.querySelectorAll(".btn-validate").forEach(function (btn) {
@@ -358,7 +379,9 @@
             if (!guardLive() || btn.disabled) return;
             const stepId = Number(btn.dataset.stepId);
             if (!stepId) return;
-            validateStep(stepId).catch(function (err) { toast(err.message, "error"); });
+            const card = btn.closest(".step-card");
+            const valProc = card ? card.dataset.valProc : "";
+            validateStep(stepId, valProc).catch(function (err) { toast(err.message, "error"); });
         });
     });
 
