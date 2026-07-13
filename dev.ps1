@@ -100,6 +100,16 @@ if ($Branch) {
 }
 Write-Host ''
 
+# Stop any running EMApp instance before permission/git work (releases port and repo locks).
+$preStopCount = 0
+if (Test-IsWindowsPlatform) {
+    $preStopCount = Stop-ListenerOnPort -Port $Port
+    if ($preStopCount -gt 0) {
+        Write-Host ('Stopped {0} process(es) on port {1} before sync.' -f $preStopCount, $Port) -ForegroundColor Gray
+        Write-Host ''
+    }
+}
+
 # 1. Permissions (automatic, non-interactive)
 $permStep = $steps[0]
 try {
@@ -112,7 +122,10 @@ try {
         Write-Host '  WARNING: Permission issues detected but fix_permissions.ps1 is not present.' -ForegroundColor Yellow
     } else {
         Write-Host '[1/9] Repairing Windows permissions...' -ForegroundColor Yellow
-        Invoke-DevPermissionRepair -ProjectRoot $ProjectRoot
+        Invoke-DevPermissionRepair -ProjectRoot $ProjectRoot -Port $Port
+        if (-not (Test-ProjectPermissions -ProjectRoot $ProjectRoot)) {
+            throw 'Permission repair completed but .git is still not writable. Run scripts\diagnose_repo_permissions.ps1 and repair from an elevated PowerShell session.'
+        }
         Set-DevStepStatus -Step $permStep -Status 'ok' -Detail 'repaired'
     }
 } catch {
@@ -133,10 +146,20 @@ if ($SkipGitPull) {
     Write-Host '[2/9] Syncing latest code...' -ForegroundColor Yellow
     Push-Location -Path $ProjectRoot
     try {
+        if (-not (Test-ProjectPermissions -ProjectRoot $ProjectRoot)) {
+            Write-Host '  WARNING: .git is not writable. Attempting permission repair before git sync...' -ForegroundColor Yellow
+            Invoke-DevPermissionRepair -ProjectRoot $ProjectRoot -Port $Port
+        }
+
         $gitIssues = @()
 
         if (-not (Invoke-DevGitCommand -Arguments @('fetch', 'origin') -StepName 'git fetch' -NonFatal)) {
             $gitIssues += 'fetch failed'
+            if (-not (Test-ProjectPermissions -ProjectRoot $ProjectRoot)) {
+                Write-Host '  WARNING: git fetch failed and .git is still not writable (ACL/lock issue, not a code error).' -ForegroundColor Yellow
+                Write-Host '  Run: .\scripts\diagnose_repo_permissions.ps1' -ForegroundColor Yellow
+                Write-Host '  Then: .\scripts\fix_permissions.ps1  (elevated PowerShell if needed)' -ForegroundColor Yellow
+            }
         }
 
         if ($Branch) {
