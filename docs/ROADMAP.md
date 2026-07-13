@@ -24,7 +24,7 @@ Runtime server/database names come from **orchestration.app_connections** only.
 
 ## Not yet wired (next phase)
 
-- Run / Validate / Start New Run (stored procedures)
+- Run / Validate / Start New Run / Stop Run / Run Sequence (stored procedures)
 - Admin user CRUD mutations
 - Reports page (Coming Soon — Phase 2)
 

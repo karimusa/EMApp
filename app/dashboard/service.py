@@ -36,6 +36,11 @@ class DashboardService:
         job_steps = orchestration_data.get_job_steps()
         step_runs = orchestration_data.get_step_runs()
         validations = orchestration_data.get_validation_results()
+        orchestration_data.log_dashboard_data_sources(
+            step_count=len(job_steps),
+            step_run_count=len(step_runs),
+            step_run_source=orchestration_data.get_step_run_source(),
+        )
 
         cards = [
             self._build_card(

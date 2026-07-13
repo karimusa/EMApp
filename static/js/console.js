@@ -15,7 +15,12 @@
     function toast(message, tone) {
         const el = document.createElement("div");
         el.className = "toast" + (tone ? " toast--" + tone : "");
-        const icon = tone === "error" ? "bi-exclamation-triangle-fill" : "bi-info-circle-fill";
+        let icon = "bi-info-circle-fill";
+        if (tone === "error") {
+            icon = "bi-exclamation-triangle-fill";
+        } else if (tone === "success") {
+            icon = "bi-check-circle-fill";
+        }
         el.innerHTML = '<i class="bi ' + icon + '"></i><span></span>';
         el.querySelector("span").textContent = message;
         stack.appendChild(el);

@@ -24,11 +24,46 @@ REQUIRED_MARKERS: dict[str, list[str]] = {
     "app/db/connection_manager.py": [
         "ensure_primary_validated",
         "_runtime_sql_credentials",
-        "is_unusable_stored_credential",
+        "matches_bootstrap_target",
+        "bootstrap-password-priority-2026-07-09",
+        "matches bootstrap server/database/user",
+        "_log_bootstrap_vs_primary",
+        "detect_sql_password_encrypted_column",
     ],
     "app/db/credentials.py": [
         "is_unusable_stored_credential",
         "BOOTSTRAP_PASSWORD",
+    ],
+    "app/db/live_schema.py": [
+        "USERS_COLUMNS",
+        "normalize_user_row",
+    ],
+    "app/db/repositories/users.py": [
+        "last_login",
+        "USERS_COLUMNS",
+    ],
+    "app/dashboard/execution.py": [
+        "ExecutionService",
+        "start_run",
+        "run_sequence",
+    ],
+    "app/dashboard/runtime.py": [
+        "EXECUTION_BUILD_ID",
+        "dashboard-execution-2026-07-10",
+    ],
+    "app/routes/api.py": [
+        '/runs", methods=["POST"]',
+        "/runs/sequence",
+        "/steps/<int:step_id>/run",
+    ],
+    "static/js/dashboard.js": [
+        "apiBase + \"/runs\"",
+        "/runs/sequence",
+    ],
+    "templates/dashboard/index.html": [
+        "Stop Run",
+        "Run Sequence",
+        "window.rraDashboard",
     ],
     "app/db/repositories/base.py": [
         "ensure_primary_validated",
@@ -39,6 +74,10 @@ REQUIRED_MARKERS: dict[str, list[str]] = {
 FORBIDDEN_MARKERS: dict[str, list[str]] = {
     "app/db/connection_manager.py": [
         "build_connection_string(conn_info), timeout=30)",
+    ],
+    "static/js/dashboard.js": [
+        "Run/Validate surface a notice until later steps",
+        "toast(LIVE_DB_MSG)",
     ],
 }
 
@@ -73,9 +112,9 @@ def main() -> int:
         for item in stale:
             print(f"  stale: {item}", file=sys.stderr)
         print(
-            "\nPull the latest main branch and restart the app:\n"
+            "\nPull the latest branch and restart the app:\n"
             "  cd G:\\EM\n"
-            "  git pull origin main\n"
+            "  .\\dev.ps1 -Branch cursor/dashboard-execution-2c1b\n"
             "  .\\setup.ps1 -TestConnection",
             file=sys.stderr,
         )
