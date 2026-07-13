@@ -69,23 +69,34 @@ function Test-ProjectPermissions {
         [string]$ProjectRoot
     )
 
+    $gitDir = Join-Path $ProjectRoot '.git'
     $targets = @(
         $ProjectRoot,
-        (Join-Path $ProjectRoot '.git'),
+        $gitDir,
+        (Join-Path $gitDir 'FETCH_HEAD'),
+        (Join-Path $gitDir 'logs'),
+        (Join-Path $gitDir 'logs\HEAD'),
         (Join-Path $ProjectRoot 'logs')
     )
 
     foreach ($target in $targets) {
-        if (-not (Test-PathWritable -Path $target -ProjectRoot $ProjectRoot)) {
-            return $false
+        if (-not (Test-Path -LiteralPath $target)) {
+            if ($target -like '*\.git') {
+                return $false
+            }
+            continue
         }
-    }
 
-    $fetchHead = Join-Path $ProjectRoot '.git\FETCH_HEAD'
-    if (Test-Path -LiteralPath $fetchHead) {
+        if ((Get-Item -LiteralPath $target).PSIsContainer) {
+            if (-not (Test-PathWritable -Path $target -ProjectRoot $ProjectRoot)) {
+                return $false
+            }
+            continue
+        }
+
         try {
             $stream = [System.IO.File]::Open(
-                $fetchHead,
+                $target,
                 [System.IO.FileMode]::Open,
                 [System.IO.FileAccess]::ReadWrite,
                 [System.IO.FileShare]::None
@@ -103,7 +114,9 @@ function Test-ProjectPermissions {
 function Invoke-DevPermissionRepair {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$ProjectRoot
+        [string]$ProjectRoot,
+
+        [int]$Port = 50006
     )
 
     $fixScript = Join-Path $ProjectRoot 'scripts\fix_permissions.ps1'
@@ -111,7 +124,7 @@ function Invoke-DevPermissionRepair {
         throw ('Permission repair script not found: {0}' -f $fixScript)
     }
 
-    & $fixScript -ProjectRoot $ProjectRoot
+    & $fixScript -ProjectRoot $ProjectRoot -Port $Port
     if ($LASTEXITCODE -ne 0) {
         throw ('Permission repair failed with exit code {0}' -f $LASTEXITCODE)
     }
