@@ -1,6 +1,4 @@
-// Dashboard interactions — Step 2 (mock data, no execution logic yet).
-// Handles phase tabs, view mode, search/filter, step detail + full-log modals,
-// and preference persistence. Run/Validate surface a notice until later steps.
+// Dashboard interactions — phase tabs, filters, modals, and live execution controls.
 
 (function () {
     "use strict";
@@ -18,6 +16,30 @@
     const emptyState = document.getElementById("stepsEmpty");
 
     const LIVE_DB_MSG = window.rraLiveDbMessage || "This action requires a live connection to MonthEndOrchestrationDB.";
+    const dashCfg = window.rraDashboard || {};
+    const live = Boolean(dashCfg.executionEnabled || dashCfg.liveDbAvailable);
+    let activeRunId = dashCfg.activeRunId || null;
+    const apiBase = dashCfg.apiBase || "/api/v1";
+
+    function disabledReason(button) {
+        return button.getAttribute("data-disabled-reason")
+            || dashCfg.blockReason
+            || dashCfg.liveUnavailableMessage
+            || LIVE_DB_MSG;
+    }
+
+    function bindDisabledFeedback(selector) {
+        document.querySelectorAll(selector).forEach(function (button) {
+            button.addEventListener("click", function (event) {
+                if (!button.disabled) {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                toast(disabledReason(button), "error");
+            });
+        });
+    }
 
     // ---- Toast helper (shared with other console pages) ----
     let stack = document.querySelector(".toast-stack");
@@ -26,9 +48,9 @@
         stack.className = "toast-stack";
         document.body.appendChild(stack);
     }
-    function toast(message) {
+    function toast(message, tone) {
         if (window.rraToast) {
-            window.rraToast(message);
+            window.rraToast(message, tone);
             return;
         }
         const el = document.createElement("div");
@@ -43,7 +65,84 @@
     }
     window.rraToast = toast;
 
-    // ---- Filtering (scoped to the active phase panel) ----
+    function reasonMessage(payload, fallback) {
+        if (!payload) return fallback;
+        if (payload.reason === "live_connection_unavailable") return payload.error || "Live connection unavailable.";
+        if (payload.reason === "permission_denied") return "Permission denied.";
+        if (payload.reason === "validation_error") return payload.error || "Validation failed.";
+        if (payload.reason === "database_connection_failed") return payload.error || "Database connection failed.";
+        if (payload.reason === "execution_failed") return payload.error || "Execution failed.";
+        return payload.error || fallback;
+    }
+
+    function guardLive() {
+        if (!live) {
+            toast(dashCfg.liveUnavailableMessage || LIVE_DB_MSG, "error");
+            return false;
+        }
+        return true;
+    }
+
+    async function apiRequest(method, path, body) {
+        const opts = {
+            method: method,
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            credentials: "same-origin",
+        };
+        if (body !== undefined) opts.body = JSON.stringify(body);
+        const response = await fetch(path, opts);
+        let payload = null;
+        try { payload = await response.json(); } catch (err) { payload = null; }
+        if (!response.ok) {
+            throw new Error(reasonMessage(payload, "Request failed (" + response.status + ")."));
+        }
+        return payload;
+    }
+
+    function reloadAfterSuccess(message) {
+        toast(message, "success");
+        window.setTimeout(function () { window.location.reload(); }, 500);
+    }
+
+    async function runStep(stepId, procName) {
+        if (!procName) {
+            throw new Error("No execute procedure is configured for this step.");
+        }
+        const payload = await apiRequest("POST", apiBase + "/steps/" + stepId + "/run", {
+            run_id: activeRunId,
+        });
+        if (payload && payload.step && payload.step.run_id) {
+            activeRunId = payload.step.run_id;
+        }
+        reloadAfterSuccess("Step executed.");
+    }
+
+    async function syncExecutionState() {
+        try {
+            const state = await apiRequest("GET", apiBase + "/execution/state");
+            if (state && state.active_run_id) {
+                activeRunId = state.active_run_id;
+            }
+            if (state && state.build_id && dashCfg.buildId && state.build_id !== dashCfg.buildId) {
+                toast("Dashboard build mismatch. Restart the app after git pull.", "error");
+            }
+        } catch (err) {
+            console.warn("Could not refresh execution state:", err.message);
+        }
+    }
+
+    async function validateStep(stepId, procName) {
+        if (!procName) {
+            throw new Error("No validate procedure is configured for this step.");
+        }
+        await apiRequest("POST", apiBase + "/steps/" + stepId + "/validate", {
+            run_id: activeRunId,
+        });
+        reloadAfterSuccess("Step validated.");
+    }
+
+    bindDisabledFeedback("#startRunBtn, #stopRunBtn, #runSequenceBtn, .btn-run, .btn-validate");
+    syncExecutionState();
     function activePanel() {
         return panels.find((p) => !p.classList.contains("d-none"));
     }
@@ -147,11 +246,17 @@
 
     // ---- Step detail modal ----
     const stepModal = document.getElementById("stepModal");
+    let activeStepId = null;
     let activeStepName = null;
+    let activeExecProc = "";
+    let activeValProc = "";
 
     function openStepModal(card) {
         if (!stepModal) return;
+        activeStepId = Number(card.dataset.stepId);
         activeStepName = card.dataset.stepName;
+        activeExecProc = card.dataset.execProc || "";
+        activeValProc = card.dataset.valProc || "";
         setText("stepModalOrder", card.dataset.order);
         setText("stepModalTitle", card.dataset.stepName);
         setText("stepModalPhase", "Phase · " + card.dataset.phase);
@@ -159,8 +264,8 @@
         setText("stepModalServer", card.dataset.server);
         setText("stepModalLastRun", card.dataset.lastRun);
         setText("stepModalDuration", card.dataset.duration);
-        setText("stepModalExecProc", card.dataset.execProc);
-        setText("stepModalValProc", card.dataset.valProc);
+        setText("stepModalExecProc", card.dataset.execProc ? ("EXEC " + card.dataset.execProc) : "");
+        setText("stepModalValProc", card.dataset.valProc ? ("EXEC " + card.dataset.valProc) : "");
         const badges = document.getElementById("stepModalBadges");
         const src = card.querySelector(".step-badges");
         if (badges && src) badges.innerHTML = src.innerHTML;
@@ -193,6 +298,15 @@
             }
         }
 
+        if (modalRun) {
+            modalRun.disabled = !live || !activeExecProc;
+            modalRun.title = activeExecProc ? "" : "No execute procedure configured";
+        }
+        if (modalValidate) {
+            modalValidate.disabled = !live || !activeValProc;
+            modalValidate.title = activeValProc ? "" : "No validate procedure configured";
+        }
+
         openModal(stepModal);
     }
 
@@ -216,8 +330,18 @@
 
     const modalRun = document.getElementById("stepModalRun");
     const modalValidate = document.getElementById("stepModalValidate");
-    if (modalRun) modalRun.addEventListener("click", () => toast(LIVE_DB_MSG));
-    if (modalValidate) modalValidate.addEventListener("click", () => toast(LIVE_DB_MSG));
+    if (modalRun) {
+        modalRun.addEventListener("click", function () {
+            if (!guardLive() || !activeStepId || modalRun.disabled) return;
+            runStep(activeStepId, activeExecProc).catch(function (err) { toast(err.message, "error"); });
+        });
+    }
+    if (modalValidate) {
+        modalValidate.addEventListener("click", function () {
+            if (!guardLive() || !activeStepId || modalValidate.disabled) return;
+            validateStep(activeStepId, activeValProc).catch(function (err) { toast(err.message, "error"); });
+        });
+    }
 
     // ---- Full log modal ----
     const logModal = document.getElementById("logModal");
@@ -235,17 +359,76 @@
 
     // ---- Sidebar toggle handled in console.js ----
 
-    // ---- Action buttons (require live DB) ----
+    // ---- Action buttons ----
     document.querySelectorAll(".btn-run").forEach(function (btn) {
         if (btn.id === "stepModalRun") return;
-        btn.addEventListener("click", () => toast(LIVE_DB_MSG));
+        btn.addEventListener("click", function (event) {
+            event.stopPropagation();
+            if (!guardLive() || btn.disabled) return;
+            const stepId = Number(btn.dataset.stepId);
+            if (!stepId) return;
+            const card = btn.closest(".step-card");
+            const execProc = card ? card.dataset.execProc : "";
+            runStep(stepId, execProc).catch(function (err) { toast(err.message, "error"); });
+        });
     });
     document.querySelectorAll(".btn-validate").forEach(function (btn) {
         if (btn.id === "stepModalValidate") return;
-        btn.addEventListener("click", () => toast(LIVE_DB_MSG));
+        btn.addEventListener("click", function (event) {
+            event.stopPropagation();
+            if (!guardLive() || btn.disabled) return;
+            const stepId = Number(btn.dataset.stepId);
+            if (!stepId) return;
+            const card = btn.closest(".step-card");
+            const valProc = card ? card.dataset.valProc : "";
+            validateStep(stepId, valProc).catch(function (err) { toast(err.message, "error"); });
+        });
     });
+
     const startBtn = document.getElementById("startRunBtn");
-    if (startBtn) startBtn.addEventListener("click", () => toast(LIVE_DB_MSG));
+    if (startBtn) {
+        startBtn.addEventListener("click", function () {
+            if (!guardLive() || startBtn.disabled) return;
+            apiRequest("POST", apiBase + "/runs", {})
+                .then(function (payload) {
+                    if (payload && payload.run && payload.run.run_id) {
+                        activeRunId = payload.run.run_id;
+                    }
+                    reloadAfterSuccess("New run started.");
+                })
+                .catch(function (err) { toast(err.message, "error"); });
+        });
+    }
+
+    const stopBtn = document.getElementById("stopRunBtn");
+    if (stopBtn) {
+        stopBtn.addEventListener("click", function () {
+            if (!guardLive() || stopBtn.disabled || !activeRunId) return;
+            apiRequest("POST", apiBase + "/runs/" + activeRunId + "/stop", {})
+                .then(function () { reloadAfterSuccess("Run stopped."); })
+                .catch(function (err) { toast(err.message, "error"); });
+        });
+    }
+
+    const sequenceBtn = document.getElementById("runSequenceBtn");
+    if (sequenceBtn) {
+        sequenceBtn.addEventListener("click", function () {
+            if (!guardLive() || sequenceBtn.disabled) return;
+            apiRequest("POST", apiBase + "/runs/sequence", { run_id: activeRunId })
+                .then(function (payload) {
+                    const seq = payload && payload.sequence;
+                    if (seq && seq.completed) {
+                        reloadAfterSuccess("Sequence completed (" + seq.executed_count + " step(s)).");
+                    } else if (seq && seq.stopped_on_step_name) {
+                        toast("Sequence stopped on " + seq.stopped_on_step_name + ": " + (seq.error || "Step failed."), "error");
+                        window.setTimeout(function () { window.location.reload(); }, 900);
+                    } else {
+                        reloadAfterSuccess("Sequence finished.");
+                    }
+                })
+                .catch(function (err) { toast(err.message, "error"); });
+        });
+    }
 
     // ---- Restore persisted preferences ----
     let savedPhase = null;

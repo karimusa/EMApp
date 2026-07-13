@@ -42,6 +42,29 @@ REQUIRED_MARKERS: dict[str, list[str]] = {
         "last_login",
         "USERS_COLUMNS",
     ],
+    "app/dashboard/execution.py": [
+        "ExecutionService",
+        "start_run",
+        "run_sequence",
+    ],
+    "app/dashboard/runtime.py": [
+        "EXECUTION_BUILD_ID",
+        "dashboard-execution-2026-07-10",
+    ],
+    "app/routes/api.py": [
+        '/runs", methods=["POST"]',
+        "/runs/sequence",
+        "/steps/<int:step_id>/run",
+    ],
+    "static/js/dashboard.js": [
+        "apiBase + \"/runs\"",
+        "/runs/sequence",
+    ],
+    "templates/dashboard/index.html": [
+        "Stop Run",
+        "Run Sequence",
+        "window.rraDashboard",
+    ],
     "app/db/repositories/base.py": [
         "ensure_primary_validated",
         "sql_connection_error_message",
@@ -51,6 +74,10 @@ REQUIRED_MARKERS: dict[str, list[str]] = {
 FORBIDDEN_MARKERS: dict[str, list[str]] = {
     "app/db/connection_manager.py": [
         "build_connection_string(conn_info), timeout=30)",
+    ],
+    "static/js/dashboard.js": [
+        "Run/Validate surface a notice until later steps",
+        "toast(LIVE_DB_MSG)",
     ],
 }
 
@@ -87,7 +114,7 @@ def main() -> int:
         print(
             "\nPull the latest branch and restart the app:\n"
             "  cd G:\\EM\n"
-            "  git pull origin cursor/legacy-schema-compat-2c1b\n"
+            "  .\\dev.ps1 -Branch cursor/dashboard-execution-2c1b\n"
             "  .\\setup.ps1 -TestConnection",
             file=sys.stderr,
         )

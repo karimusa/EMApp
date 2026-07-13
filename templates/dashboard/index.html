@@ -26,11 +26,51 @@
             {{ status_pill(run.status) }}
         </div>
         {% if nav_is_admin %}
-        <button class="btn-primary" type="button" id="startRunBtn">
-            <i class="bi bi-play-fill"></i> Start New Run
-        </button>
+        <div class="dashboard-run-actions">
+            <button class="btn-stop" type="button" id="stopRunBtn"
+                    {% if not can_stop_run %}disabled data-disabled-reason="{{ execution.execution_block_reason or 'No active run to stop.' }}"{% endif %}
+                    title="{% if can_stop_run %}Stop the current run{% else %}{{ execution.execution_block_reason or 'No active run to stop.' }}{% endif %}">
+                <i class="bi bi-stop-fill"></i> Stop Run
+            </button>
+            <button class="btn-sequence" type="button" id="runSequenceBtn"
+                    {% if not can_run_sequence %}disabled data-disabled-reason="{{ execution.execution_block_reason or 'Start a run before running the sequence.' }}"{% endif %}
+                    title="{% if can_run_sequence %}Run pending steps in sequence{% else %}{{ execution.execution_block_reason or 'Start a run before running the sequence.' }}{% endif %}">
+                <i class="bi bi-collection-play-fill"></i> Run Sequence
+            </button>
+            <button class="btn-primary" type="button" id="startRunBtn"
+                    {% if not can_start_run %}disabled data-disabled-reason="{{ execution.execution_block_reason or 'A run is already in progress.' }}"{% endif %}
+                    title="{% if can_start_run %}Start a new month-end run{% else %}{{ execution.execution_block_reason or 'A run is already in progress.' }}{% endif %}">
+                <i class="bi bi-play-fill"></i> Start New Run
+            </button>
+        </div>
         {% endif %}
     </div>
+
+    <div class="execution-status-bar" id="executionStatusBar" role="status">
+        <span class="execution-status-pill {% if execution.execution_enabled %}execution-status-pill--ok{% else %}execution-status-pill--warn{% endif %}">
+            <i class="bi {{ 'bi-lightning-charge-fill' if execution.execution_enabled else 'bi-exclamation-triangle-fill' }}"></i>
+            {% if execution.execution_enabled %}Execution enabled{% else %}Execution disabled{% endif %}
+        </span>
+        <span class="execution-status-meta">Build {{ execution.build_id }} · git {{ execution.git_head }} · data {{ execution.data_source }}</span>
+        {% if execution.active_run_id %}
+        <span class="execution-status-meta">Active run #{{ execution.active_run_id }} ({{ execution.active_run_status }})</span>
+        {% else %}
+        <span class="execution-status-meta">No active run — click Start New Run first</span>
+        {% endif %}
+        {% if execution.execution_block_reason and not execution.execution_enabled %}
+        <span class="execution-status-reason">{{ execution.execution_block_reason }}</span>
+        {% endif %}
+    </div>
+
+    {% if not execution.execution_enabled %}
+    <div class="page-banner page-banner--warn" role="status">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <div>
+            <strong>Execution controls are disabled.</strong>
+            <span>Validate the PRIMARY connection to MonthEndOrchestrationDB in Settings to enable Start, Stop, Sequence, Run, and Validate.</span>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Summary cards (orchestration.run_metrics) -->
     <section class="stat-grid">
@@ -111,7 +151,7 @@
     <section class="phase-panel {% if not loop.first %}d-none{% endif %}" data-phase-panel="{{ phase.key }}">
         <div class="step-grid" data-layout="grid">
             {% for step in phase.steps %}
-            {{ step_card(step, nav_is_admin) }}
+            {{ step_card(step, nav_is_admin, execution.execution_enabled) }}
             {% endfor %}
         </div>
     </section>
@@ -276,5 +316,20 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+    window.rraDashboard = {
+        liveDbAvailable: {{ 'true' if execution.execution_enabled else 'false' }},
+        executionEnabled: {{ 'true' if execution.execution_enabled else 'false' }},
+        buildId: {{ execution.build_id|tojson }},
+        gitHead: {{ execution.git_head|tojson }},
+        activeRunId: {{ active_run_id or 'null' }},
+        canStart: {{ 'true' if can_start_run else 'false' }},
+        canStop: {{ 'true' if can_stop_run else 'false' }},
+        canSequence: {{ 'true' if can_run_sequence else 'false' }},
+        apiBase: "/api/v1",
+        blockReason: {{ (execution.execution_block_reason or '')|tojson }},
+        liveUnavailableMessage: {{ (execution.execution_block_reason or 'Live SQL connection unavailable. Validate PRIMARY in Settings before running steps.')|tojson }}
+    };
+</script>
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 {% endblock %}

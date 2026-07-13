@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import logging
 from typing import Any
 
 from app.db.live_schema import (
@@ -15,7 +16,7 @@ from app.db.live_schema import (
     normalize_step_run_row,
 )
 from app.db.registry import PHASES
-from app.db.repositories.base import query_primary, use_mock_data
+from app.db.repositories.base import exec_connection, exec_primary, query_connection, query_primary, query_scalar_primary, use_mock_data
 
 logger = logging.getLogger(__name__)
 
@@ -430,4 +431,333 @@ class OrchestrationRepository:
             "validation_failed_count": val_failed,
             "progress_pct": progress,
             "updated_at": "—",
+        }
+
+    def get_step_by_id(self, step_id: int) -> dict[str, Any] | None:
+        if use_mock_data():
+            from app.dashboard import mock_data
+
+            for step in mock_data.get_job_steps():
+                if int(step["step_id"]) == int(step_id):
+                    return step
+            return None
+
+        rows = query_primary(
+            """
+            SELECT
+                step_id,
+                job_id,
+                step_order,
+                step_name,
+                parameters,
+                is_active,
+                step_type,
+                command,
+                server_name,
+                requires_approval,
+                on_failure_action,
+                retry_count,
+                retry_delay_sec,
+                execution_mode,
+                phase_code
+            FROM orchestration.job_steps
+            WHERE step_id = ?
+            """,
+            (step_id,),
+        )
+        return normalize_job_step_row(rows[0]) if rows else None
+
+    def create_job_run(self, *, job_id: int, triggered_by: str, run_name: str) -> int:
+        logger.info(
+            "create_job_run job_id=%s triggered_by=%s run_name=%s",
+            job_id,
+            triggered_by,
+            run_name,
+        )
+        run_id = query_scalar_primary(
+            """
+            INSERT INTO orchestration.job_runs (
+                job_id, start_time, status, triggered_by, run_name, phase_code
+            )
+            OUTPUT INSERTED.run_id
+            VALUES (?, SYSUTCDATETIME(), 'Running', ?, ?, 'PRE')
+            """,
+            (job_id, triggered_by, run_name),
+        )
+        if run_id is None:
+            rows = query_primary(
+                """
+                SELECT TOP 1 run_id
+                FROM orchestration.job_runs
+                WHERE job_id = ? AND triggered_by = ?
+                ORDER BY run_id DESC
+                """,
+                (job_id, triggered_by),
+            )
+            run_id = rows[0]["run_id"] if rows else None
+        if run_id is None:
+            raise RuntimeError("Failed to create job run.")
+        logger.info("create_job_run success run_id=%s", run_id)
+        return int(run_id)
+
+    def stop_job_run(self, run_id: int) -> None:
+        exec_primary(
+            """
+            UPDATE orchestration.job_runs
+            SET status = 'Stopped',
+                end_time = SYSUTCDATETIME()
+            WHERE run_id = ?
+              AND status IN ('Running', 'In Progress', 'Pending')
+            """,
+            (run_id,),
+        )
+        exec_primary(
+            """
+            UPDATE orchestration.step_runs
+            SET status = 'Skipped',
+                end_time = SYSUTCDATETIME(),
+                log_message = COALESCE(log_message, 'Run stopped by operator.')
+            WHERE run_id = ?
+              AND status IN ('Running', 'Pending')
+            """,
+            (run_id,),
+        )
+
+    def _insert_execution_log(
+        self,
+        *,
+        run_id: int,
+        step: dict[str, Any],
+        status: str,
+        message: str,
+    ) -> None:
+        exec_primary(
+            """
+            INSERT INTO orchestration.db_execution_log (
+                process_name, database_name, step, status, message, log_time
+            )
+            VALUES (?, ?, ?, ?, ?, SYSUTCDATETIME())
+            """,
+            (
+                step.get("execute_proc_name") or step.get("step_name"),
+                step.get("server_name") or step.get("environment_name") or "PRIMARY",
+                step.get("step_name"),
+                status,
+                message,
+            ),
+        )
+
+    def _upsert_step_run_running(
+        self,
+        *,
+        run_id: int,
+        step: dict[str, Any],
+        actor: str,
+    ) -> None:
+        step_id = int(step["step_id"])
+        existing = query_primary(
+            """
+            SELECT step_run_id
+            FROM orchestration.step_runs
+            WHERE run_id = ? AND step_id = ?
+            """,
+            (run_id, step_id),
+        )
+        if existing:
+            exec_primary(
+                """
+                UPDATE orchestration.step_runs
+                SET status = 'Running',
+                    start_time = SYSUTCDATETIME(),
+                    end_time = NULL,
+                    log_message = 'Execution started.',
+                    step_order = ?,
+                    step_name = ?,
+                    phase_code = ?,
+                    approved_by = ?
+                WHERE run_id = ? AND step_id = ?
+                """,
+                (
+                    step.get("step_order") or 0,
+                    step["step_name"],
+                    step.get("phase_code") or "",
+                    actor,
+                    run_id,
+                    step_id,
+                ),
+            )
+        else:
+            exec_primary(
+                """
+                INSERT INTO orchestration.step_runs (
+                    run_id, step_id, start_time, status, log_message,
+                    step_order, step_name, phase_code, approved_by
+                )
+                VALUES (?, ?, SYSUTCDATETIME(), 'Running', 'Execution started.',
+                        ?, ?, ?, ?)
+                """,
+                (
+                    run_id,
+                    step_id,
+                    step.get("step_order") or 0,
+                    step["step_name"],
+                    step.get("phase_code") or "",
+                    actor,
+                ),
+            )
+
+    def _finalize_step_run(
+        self,
+        *,
+        run_id: int,
+        step_id: int,
+        status: str,
+        message: str,
+        approval_status: str | None = None,
+    ) -> None:
+        if approval_status:
+            exec_primary(
+                """
+                UPDATE orchestration.step_runs
+                SET status = ?,
+                    end_time = SYSUTCDATETIME(),
+                    log_message = ?,
+                    approval_status = ?
+                WHERE run_id = ? AND step_id = ?
+                """,
+                (status, message, approval_status, run_id, step_id),
+            )
+        else:
+            exec_primary(
+                """
+                UPDATE orchestration.step_runs
+                SET status = ?,
+                    end_time = SYSUTCDATETIME(),
+                    log_message = ?
+                WHERE run_id = ? AND step_id = ?
+                """,
+                (status, message, run_id, step_id),
+            )
+
+    @staticmethod
+    def _proc_sql(proc_name: str) -> str:
+        import re
+
+        from app.db.registry import normalize_proc_name
+
+        name = normalize_proc_name(proc_name)
+        if not name:
+            raise ValueError("Stored procedure name is required.")
+        if not re.match(r"^[A-Za-z0-9_.]+$", name):
+            raise ValueError(f"Invalid procedure name: {name}")
+        return f"EXEC {name}"
+
+    def execute_step_procedure(
+        self,
+        step: dict[str, Any],
+        *,
+        run_id: int,
+        actor: str,
+    ) -> dict[str, Any]:
+        proc_name = step.get("execute_proc_name") or ""
+        environment_name = step.get("environment_name") or "PRIMARY"
+        if not proc_name:
+            raise ValueError(f"Step {step['step_id']} has no execute procedure configured.")
+
+        logger.info(
+            "execute_step_procedure run_id=%s step_id=%s env=%s proc=%s actor=%s",
+            run_id,
+            step["step_id"],
+            environment_name,
+            proc_name,
+            actor,
+        )
+        self._upsert_step_run_running(run_id=run_id, step=step, actor=actor)
+        sql = self._proc_sql(proc_name)
+        try:
+            query_connection(environment_name, sql)
+            message = f"{step['step_name']} completed successfully."
+            status = "Success"
+            self._finalize_step_run(
+                run_id=run_id,
+                step_id=int(step["step_id"]),
+                status=status,
+                message=message,
+            )
+            self._insert_execution_log(
+                run_id=run_id,
+                step=step,
+                status=status,
+                message=message,
+            )
+            return {"execution_status": status, "message": message}
+        except Exception as exc:
+            message = str(exc)
+            status = "Failed"
+            self._finalize_step_run(
+                run_id=run_id,
+                step_id=int(step["step_id"]),
+                status=status,
+                message=message,
+            )
+            self._insert_execution_log(
+                run_id=run_id,
+                step=step,
+                status=status,
+                message=message,
+            )
+            raise
+
+    def validate_step_procedure(
+        self,
+        step: dict[str, Any],
+        *,
+        run_id: int,
+        actor: str,
+    ) -> dict[str, Any]:
+        proc_name = step.get("validate_proc_name") or ""
+        environment_name = step.get("environment_name") or "PRIMARY"
+        if not proc_name:
+            raise ValueError(f"Step {step['step_id']} has no validate procedure configured.")
+
+        sql = self._proc_sql(proc_name)
+        rows = query_connection(environment_name, sql)
+        approval_status = "Passed"
+        message = f"{step['step_name']} validation passed."
+        if rows:
+            row = rows[0]
+            raw_status = (
+                row.get("ValidationStatus")
+                or row.get("pass_fail")
+                or row.get("validation_status")
+                or row.get("status")
+            )
+            if raw_status:
+                text = str(raw_status).strip().upper()
+                if text in {"FAIL", "FAILED", "REJECTED"}:
+                    approval_status = "Failed"
+                    message = (
+                        row.get("ResultMessage")
+                        or row.get("result_message")
+                        or row.get("message")
+                        or "Validation failed."
+                    )
+                else:
+                    message = (
+                        row.get("ResultMessage")
+                        or row.get("result_message")
+                        or row.get("message")
+                        or message
+                    )
+
+        self._finalize_step_run(
+            run_id=run_id,
+            step_id=int(step["step_id"]),
+            status="Success",
+            message=message,
+            approval_status=approval_status,
+        )
+        return {
+            "validation_status": "Passed" if approval_status == "Passed" else "Failed",
+            "message": message,
         }

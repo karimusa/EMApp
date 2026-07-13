@@ -93,6 +93,30 @@ def query_connection(environment_name: str, sql: str, params: tuple = ()) -> lis
         raise
 
 
+def exec_connection(environment_name: str, sql: str, params: tuple = ()) -> None:
+    try:
+        with get_connection_manager().connect(environment_name) as db:
+            cursor = db.cursor()
+            cursor.execute(sql, params)
+            db.commit()
+    except ConnectionError:
+        raise
+    except Exception as exc:
+        if is_pyodbc_error(exc):
+            raise ConnectionError(
+                sql_connection_error_message(environment_name, exc)
+            ) from exc
+        raise
+
+
+def query_scalar_primary(sql: str, params: tuple = ()) -> Any:
+    rows = query_primary(sql, params)
+    if not rows:
+        return None
+    row = rows[0]
+    return next(iter(row.values()))
+
+
 def exec_primary(sql: str, params: tuple = ()) -> None:
     _require_primary_ready()
     manager = get_connection_manager()

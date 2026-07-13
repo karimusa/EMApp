@@ -11,7 +11,7 @@
     .\dev.ps1
 
 .EXAMPLE
-    .\dev.ps1 -Branch cursor/users-admin-actions-2c1b
+    .\dev.ps1 -Branch cursor/dashboard-execution-2c1b
 
 .EXAMPLE
     VS Code: Ctrl+Shift+B  (task: EMApp: Run Development)
@@ -39,7 +39,7 @@ function Show-DevHelp {
 EMApp development startup (Windows)
 
 Usage:
-  .\dev.ps1 [-Branch <name>] [-SkipGitPull] [-NoBrowser] [-Port 50006]
+  .\dev.ps1 [-Branch cursor/dashboard-execution-2c1b] [-SkipGitPull] [-NoBrowser] [-Port 50006]
 
   Branch        git fetch origin and checkout this branch before pull
   SkipGitPull   Do not run git fetch/pull
@@ -48,7 +48,7 @@ Usage:
 
 Examples:
   .\dev.ps1
-  .\dev.ps1 -Branch cursor/users-admin-actions-2c1b
+  .\dev.ps1 -Branch cursor/dashboard-execution-2c1b
 
 VS Code:
   Ctrl+Shift+B  ->  EMApp: Run Development
