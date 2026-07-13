@@ -132,6 +132,12 @@ def run_step(step_id: int):
     if denied:
         return denied
     payload = request.get_json(silent=True) or {}
+    logger.info(
+        "API run_step user=%s step_id=%s payload=%s",
+        session.get("username"),
+        step_id,
+        payload,
+    )
     try:
         result = execution_service.run_step(
             step_id,

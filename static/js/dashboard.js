@@ -104,17 +104,40 @@
         window.setTimeout(function () { window.location.reload(); }, 500);
     }
 
-    async function runStep(stepId, procName) {
+    function setButtonBusy(button, busy, busyLabel) {
+        if (!button) return;
+        if (busy) {
+            if (!button.dataset.idleHtml) {
+                button.dataset.idleHtml = button.innerHTML;
+            }
+            button.disabled = true;
+            button.classList.add("is-busy");
+            button.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> ' + (busyLabel || "Working...");
+        } else {
+            button.disabled = false;
+            button.classList.remove("is-busy");
+            if (button.dataset.idleHtml) {
+                button.innerHTML = button.dataset.idleHtml;
+            }
+        }
+    }
+
+    async function runStep(stepId, procName, triggerButton) {
         if (!procName) {
             throw new Error("No execute procedure is configured for this step.");
         }
-        const payload = await apiRequest("POST", apiBase + "/steps/" + stepId + "/run", {
-            run_id: activeRunId,
-        });
-        if (payload && payload.step && payload.step.run_id) {
-            activeRunId = payload.step.run_id;
+        setButtonBusy(triggerButton, true, "Running...");
+        try {
+            const payload = await apiRequest("POST", apiBase + "/steps/" + stepId + "/run", {
+                run_id: activeRunId,
+            });
+            if (payload && payload.step && payload.step.run_id) {
+                activeRunId = payload.step.run_id;
+            }
+            reloadAfterSuccess("Step executed.");
+        } finally {
+            setButtonBusy(triggerButton, false);
         }
-        reloadAfterSuccess("Step executed.");
     }
 
     async function syncExecutionState() {
@@ -131,18 +154,44 @@
         }
     }
 
-    async function validateStep(stepId, procName) {
+    async function validateStep(stepId, procName, triggerButton) {
         if (!procName) {
             throw new Error("No validate procedure is configured for this step.");
         }
-        await apiRequest("POST", apiBase + "/steps/" + stepId + "/validate", {
-            run_id: activeRunId,
-        });
-        reloadAfterSuccess("Step validated.");
+        setButtonBusy(triggerButton, true, "Validating...");
+        try {
+            await apiRequest("POST", apiBase + "/steps/" + stepId + "/validate", {
+                run_id: activeRunId,
+            });
+            reloadAfterSuccess("Step validated.");
+        } finally {
+            setButtonBusy(triggerButton, false);
+        }
     }
 
+    function bindActionButton(selector, handler) {
+        document.querySelectorAll(selector).forEach(function (button) {
+            button.addEventListener("click", function (event) {
+                event.stopPropagation();
+                if (button.disabled) {
+                    toast(disabledReason(button), "error");
+                    return;
+                }
+                handler(button, event);
+            });
+        });
+    }
     bindDisabledFeedback("#startRunBtn, #stopRunBtn, #runSequenceBtn, .btn-run, .btn-validate");
+    document.addEventListener("click", function (event) {
+        const disabledButton = event.target.closest("button[disabled]");
+        if (!disabledButton) return;
+        if (!disabledButton.matches("#startRunBtn, #stopRunBtn, #runSequenceBtn, .btn-run, .btn-validate")) return;
+        event.preventDefault();
+        event.stopPropagation();
+        toast(disabledReason(disabledButton), "error");
+    }, true);
     syncExecutionState();
+
     function activePanel() {
         return panels.find((p) => !p.classList.contains("d-none"));
     }
@@ -333,13 +382,13 @@
     if (modalRun) {
         modalRun.addEventListener("click", function () {
             if (!guardLive() || !activeStepId || modalRun.disabled) return;
-            runStep(activeStepId, activeExecProc).catch(function (err) { toast(err.message, "error"); });
+            runStep(activeStepId, activeExecProc, modalRun).catch(function (err) { toast(err.message, "error"); });
         });
     }
     if (modalValidate) {
         modalValidate.addEventListener("click", function () {
             if (!guardLive() || !activeStepId || modalValidate.disabled) return;
-            validateStep(activeStepId, activeValProc).catch(function (err) { toast(err.message, "error"); });
+            validateStep(activeStepId, activeValProc, modalValidate).catch(function (err) { toast(err.message, "error"); });
         });
     }
 
@@ -359,36 +408,30 @@
 
     // ---- Sidebar toggle handled in console.js ----
 
-    // ---- Action buttons ----
-    document.querySelectorAll(".btn-run").forEach(function (btn) {
+    bindActionButton(".btn-run", function (btn) {
         if (btn.id === "stepModalRun") return;
-        btn.addEventListener("click", function (event) {
-            event.stopPropagation();
-            if (!guardLive() || btn.disabled) return;
-            const stepId = Number(btn.dataset.stepId);
-            if (!stepId) return;
-            const card = btn.closest(".step-card");
-            const execProc = card ? card.dataset.execProc : "";
-            runStep(stepId, execProc).catch(function (err) { toast(err.message, "error"); });
-        });
+        if (!guardLive()) return;
+        const stepId = Number(btn.dataset.stepId);
+        if (!stepId) return;
+        const card = btn.closest(".step-card");
+        const execProc = card ? card.dataset.execProc : "";
+        runStep(stepId, execProc, btn).catch(function (err) { toast(err.message, "error"); });
     });
-    document.querySelectorAll(".btn-validate").forEach(function (btn) {
+    bindActionButton(".btn-validate", function (btn) {
         if (btn.id === "stepModalValidate") return;
-        btn.addEventListener("click", function (event) {
-            event.stopPropagation();
-            if (!guardLive() || btn.disabled) return;
-            const stepId = Number(btn.dataset.stepId);
-            if (!stepId) return;
-            const card = btn.closest(".step-card");
-            const valProc = card ? card.dataset.valProc : "";
-            validateStep(stepId, valProc).catch(function (err) { toast(err.message, "error"); });
-        });
+        if (!guardLive()) return;
+        const stepId = Number(btn.dataset.stepId);
+        if (!stepId) return;
+        const card = btn.closest(".step-card");
+        const valProc = card ? card.dataset.valProc : "";
+        validateStep(stepId, valProc, btn).catch(function (err) { toast(err.message, "error"); });
     });
 
     const startBtn = document.getElementById("startRunBtn");
     if (startBtn) {
         startBtn.addEventListener("click", function () {
             if (!guardLive() || startBtn.disabled) return;
+            setButtonBusy(startBtn, true, "Starting...");
             apiRequest("POST", apiBase + "/runs", {})
                 .then(function (payload) {
                     if (payload && payload.run && payload.run.run_id) {
@@ -396,7 +439,8 @@
                     }
                     reloadAfterSuccess("New run started.");
                 })
-                .catch(function (err) { toast(err.message, "error"); });
+                .catch(function (err) { toast(err.message, "error"); })
+                .finally(function () { setButtonBusy(startBtn, false); });
         });
     }
 
@@ -404,9 +448,11 @@
     if (stopBtn) {
         stopBtn.addEventListener("click", function () {
             if (!guardLive() || stopBtn.disabled || !activeRunId) return;
+            setButtonBusy(stopBtn, true, "Stopping...");
             apiRequest("POST", apiBase + "/runs/" + activeRunId + "/stop", {})
                 .then(function () { reloadAfterSuccess("Run stopped."); })
-                .catch(function (err) { toast(err.message, "error"); });
+                .catch(function (err) { toast(err.message, "error"); })
+                .finally(function () { setButtonBusy(stopBtn, false); });
         });
     }
 
@@ -414,6 +460,7 @@
     if (sequenceBtn) {
         sequenceBtn.addEventListener("click", function () {
             if (!guardLive() || sequenceBtn.disabled) return;
+            setButtonBusy(sequenceBtn, true, "Running sequence...");
             apiRequest("POST", apiBase + "/runs/sequence", { run_id: activeRunId })
                 .then(function (payload) {
                     const seq = payload && payload.sequence;
@@ -426,7 +473,8 @@
                         reloadAfterSuccess("Sequence finished.");
                     }
                 })
-                .catch(function (err) { toast(err.message, "error"); });
+                .catch(function (err) { toast(err.message, "error"); })
+                .finally(function () { setButtonBusy(sequenceBtn, false); });
         });
     }
 

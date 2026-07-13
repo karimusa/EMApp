@@ -331,5 +331,5 @@
         liveUnavailableMessage: {{ (execution.execution_block_reason or 'Live SQL connection unavailable. Validate PRIMARY in Settings before running steps.')|tojson }}
     };
 </script>
-<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}?v={{ execution.build_id|urlencode }}"></script>
 {% endblock %}
