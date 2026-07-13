@@ -392,36 +392,132 @@ function Invoke-DevGitCommand {
     }
 }
 
+function ConvertTo-ProcessArgumentsString {
+    param(
+        [Parameter(ValueFromPipeline = $true)]
+        [string[]]$Arguments
+    )
+
+    $quoted = foreach ($argument in $Arguments) {
+        if ($null -eq $argument) {
+            continue
+        }
+        if ($argument -match '[\s"]') {
+            '"' + ($argument.Replace('"', '\"')) + '"'
+        } else {
+            $argument
+        }
+    }
+
+    return ($quoted -join ' ')
+}
+
+function Write-DevProcessLine {
+    param(
+        [string]$Line
+    )
+
+    if ($null -ne $Line -and $Line.Length -gt 0) {
+        Write-Host $Line
+    }
+}
+
 function Invoke-DevForegroundCommand {
     param(
         [Parameter(Mandatory = $true)]
         [string]$FilePath,
 
-        [string[]]$Arguments = @()
+        [string[]]$Arguments = @(),
+
+        [string]$WorkingDirectory = '',
+
+        [int]$ReadyPort = 0,
+
+        [scriptblock]$OnPortReady = $null,
+
+        [int]$ReadyTimeoutSeconds = 60
     )
 
-    # Long-running processes (Flask) log INFO to stderr; only exit code should fail startup.
-    $previousNativeErrorPref = $null
-    if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -Scope Global -ErrorAction SilentlyContinue) {
-        $previousNativeErrorPref = $PSNativeCommandUseErrorActionPreference
-        $PSNativeCommandUseErrorActionPreference = $false
+    if (-not (Test-Path -LiteralPath $FilePath)) {
+        throw ('Executable was not found: {0}' -f $FilePath)
     }
 
-    $previousErrorAction = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = $FilePath
+    $startInfo.Arguments = ConvertTo-ProcessArgumentsString -Arguments $Arguments
+    $startInfo.UseShellExecute = $false
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $startInfo.CreateNoWindow = $true
+    if ($WorkingDirectory) {
+        $startInfo.WorkingDirectory = $WorkingDirectory
+    }
+
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $startInfo
+    $process.EnableRaisingEvents = $true
+
+    $outputHandler = [System.Diagnostics.DataReceivedEventHandler] {
+        param($sender, $eventArgs)
+        if ($eventArgs.Data) {
+            Write-DevProcessLine -Line $eventArgs.Data
+        }
+    }
+
+    $null = $process.add_OutputDataReceived($outputHandler)
+    $null = $process.add_ErrorDataReceived($outputHandler)
+
+    if (-not $process.Start()) {
+        throw ('Failed to start process: {0}' -f $FilePath)
+    }
+
+    $process.BeginOutputReadLine()
+    $process.BeginErrorReadLine()
+
+    $portReady = $false
+    $portSignaled = $false
+    $readyDeadline = $null
+    if ($ReadyPort -gt 0) {
+        $readyDeadline = (Get-Date).AddSeconds($ReadyTimeoutSeconds)
+    }
 
     try {
-        & $FilePath @Arguments 2>&1 | Write-DevCommandOutput
+        while (-not $process.HasExited) {
+            if ($ReadyPort -gt 0 -and -not $portSignaled) {
+                if (Test-AppPortListening -Port $ReadyPort) {
+                    $portReady = $true
+                    $portSignaled = $true
+                    if ($OnPortReady) {
+                        & $OnPortReady
+                    }
+                } elseif ($readyDeadline -and (Get-Date) -gt $readyDeadline) {
+                    throw ('Process did not listen on port {0} within {1} seconds.' -f $ReadyPort, $ReadyTimeoutSeconds)
+                }
+            }
 
-        $exitCode = $LASTEXITCODE
+            Start-Sleep -Milliseconds 200
+        }
+
+        $process.WaitForExit()
+        Start-Sleep -Milliseconds 150
+
+        $exitCode = $process.ExitCode
         if ($null -eq $exitCode) {
             $exitCode = 0
         }
+
+        if ($ReadyPort -gt 0 -and -not $portReady -and $exitCode -eq 0) {
+            throw ('EMApp exited before port {0} became ready.' -f $ReadyPort)
+        }
+
         return $exitCode
     } finally {
-        $ErrorActionPreference = $previousErrorAction
-        if ($null -ne $previousNativeErrorPref) {
-            $PSNativeCommandUseErrorActionPreference = $previousNativeErrorPref
+        if (-not $process.HasExited) {
+            try {
+                $process.Kill()
+            } catch {
+            }
         }
+        $process.Dispose()
     }
 }
