@@ -9,6 +9,7 @@ import pytest
 from app import create_app
 from app.dashboard.errors import ExecutionError, LiveExecutionRequiredError
 from app.dashboard.execution import ExecutionService
+from app.db.repositories.orchestration import OrchestrationRepository
 from config.settings import TestingConfig
 
 
@@ -101,3 +102,34 @@ class TestExecutionServiceRules:
         service = ExecutionService()
         with pytest.raises(ExecutionError, match="already in progress"):
             service.start_run(actor="admin")
+
+    @patch("app.dashboard.execution.get_execution_runtime")
+    @patch("app.dashboard.execution.execution_enabled", return_value=True)
+    @patch.object(ExecutionService, "_active_run", return_value=None)
+    @patch.object(ExecutionService, "_get_jobs")
+    @patch.object(OrchestrationRepository, "create_job_run", return_value=99)
+    @patch.object(OrchestrationRepository, "get_current_run_id", return_value=None)
+    @patch.object(OrchestrationRepository, "get_step_by_id")
+    @patch.object(OrchestrationRepository, "execute_step_procedure")
+    def test_run_step_auto_starts_run_when_none_active(
+        self,
+        mock_execute,
+        mock_get_step,
+        _mock_current_run,
+        _mock_create_run,
+        mock_get_jobs,
+        _mock_active,
+        _mock_enabled,
+        mock_runtime,
+    ):
+        mock_runtime.return_value = {"execution_block_reason": None, "execution_enabled": True}
+        mock_get_jobs.return_value = [{"job_id": 1}]
+        mock_get_step.return_value = {"step_id": 3, "step_name": "Send Start Email", "is_enabled": True}
+        mock_execute.return_value = {"execution_status": "Success", "message": "ok"}
+
+        service = ExecutionService()
+        result = service.run_step(3, run_id=None, actor="admin")
+
+        assert result["run_id"] == 99
+        _mock_create_run.assert_called_once()
+        mock_execute.assert_called_once()

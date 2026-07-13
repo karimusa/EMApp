@@ -33,8 +33,8 @@
                 <i class="bi bi-stop-fill"></i> Stop Run
             </button>
             <button class="btn-sequence" type="button" id="runSequenceBtn"
-                    {% if not can_run_sequence %}disabled data-disabled-reason="{{ execution.execution_block_reason or 'Start a run before running the sequence.' }}"{% endif %}
-                    title="{% if can_run_sequence %}Run pending steps in sequence{% else %}{{ execution.execution_block_reason or 'Start a run before running the sequence.' }}{% endif %}">
+                    {% if not execution.execution_enabled %}disabled data-disabled-reason="{{ execution.execution_block_reason or 'Execution is disabled until PRIMARY is validated.' }}"{% endif %}
+                    title="{% if execution.execution_enabled %}Run pending steps in sequence{% else %}{{ execution.execution_block_reason or 'Execution is disabled until PRIMARY is validated.' }}{% endif %}">
                 <i class="bi bi-collection-play-fill"></i> Run Sequence
             </button>
             <button class="btn-primary" type="button" id="startRunBtn"
@@ -52,10 +52,11 @@
             {% if execution.execution_enabled %}Execution enabled{% else %}Execution disabled{% endif %}
         </span>
         <span class="execution-status-meta">Build {{ execution.build_id }} · git {{ execution.git_head }} · data {{ execution.data_source }}</span>
+        <span class="execution-status-meta execution-status-feedback" id="executionActionFeedback"></span>
         {% if execution.active_run_id %}
         <span class="execution-status-meta">Active run #{{ execution.active_run_id }} ({{ execution.active_run_status }})</span>
         {% else %}
-        <span class="execution-status-meta">No active run — click Start New Run first</span>
+        <span class="execution-status-meta">No active run — click Start New Run or Run on any step</span>
         {% endif %}
         {% if execution.execution_block_reason and not execution.execution_enabled %}
         <span class="execution-status-reason">{{ execution.execution_block_reason }}</span>

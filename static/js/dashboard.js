@@ -77,7 +77,7 @@
 
     function guardLive() {
         if (!live) {
-            toast(dashCfg.liveUnavailableMessage || LIVE_DB_MSG, "error");
+            showFeedback(dashCfg.liveUnavailableMessage || LIVE_DB_MSG, "error");
             return false;
         }
         return true;
@@ -99,9 +99,17 @@
         return payload;
     }
 
+    function showFeedback(message, tone) {
+        const feedback = document.getElementById("executionActionFeedback");
+        if (feedback) {
+            feedback.textContent = message;
+        }
+        toast(message, tone || "info");
+    }
+
     function reloadAfterSuccess(message) {
-        toast(message, "success");
-        window.setTimeout(function () { window.location.reload(); }, 500);
+        showFeedback(message, "success");
+        window.setTimeout(function () { window.location.reload(); }, 700);
     }
 
     function setButtonBusy(button, busy, busyLabel) {
@@ -126,6 +134,7 @@
         if (!procName) {
             throw new Error("No execute procedure is configured for this step.");
         }
+        showFeedback("Running step...", "info");
         setButtonBusy(triggerButton, true, "Running...");
         try {
             const payload = await apiRequest("POST", apiBase + "/steps/" + stepId + "/run", {
@@ -158,6 +167,7 @@
         if (!procName) {
             throw new Error("No validate procedure is configured for this step.");
         }
+        showFeedback("Validating step...", "info");
         setButtonBusy(triggerButton, true, "Validating...");
         try {
             await apiRequest("POST", apiBase + "/steps/" + stepId + "/validate", {
@@ -382,13 +392,13 @@
     if (modalRun) {
         modalRun.addEventListener("click", function () {
             if (!guardLive() || !activeStepId || modalRun.disabled) return;
-            runStep(activeStepId, activeExecProc, modalRun).catch(function (err) { toast(err.message, "error"); });
+            runStep(activeStepId, activeExecProc, modalRun).catch(function (err) { showFeedback(err.message, "error"); });
         });
     }
     if (modalValidate) {
         modalValidate.addEventListener("click", function () {
             if (!guardLive() || !activeStepId || modalValidate.disabled) return;
-            validateStep(activeStepId, activeValProc, modalValidate).catch(function (err) { toast(err.message, "error"); });
+            validateStep(activeStepId, activeValProc, modalValidate).catch(function (err) { showFeedback(err.message, "error"); });
         });
     }
 
@@ -415,7 +425,7 @@
         if (!stepId) return;
         const card = btn.closest(".step-card");
         const execProc = card ? card.dataset.execProc : "";
-        runStep(stepId, execProc, btn).catch(function (err) { toast(err.message, "error"); });
+        runStep(stepId, execProc, btn).catch(function (err) { showFeedback(err.message, "error"); });
     });
     bindActionButton(".btn-validate", function (btn) {
         if (btn.id === "stepModalValidate") return;
@@ -424,13 +434,14 @@
         if (!stepId) return;
         const card = btn.closest(".step-card");
         const valProc = card ? card.dataset.valProc : "";
-        validateStep(stepId, valProc, btn).catch(function (err) { toast(err.message, "error"); });
+        validateStep(stepId, valProc, btn).catch(function (err) { showFeedback(err.message, "error"); });
     });
 
     const startBtn = document.getElementById("startRunBtn");
     if (startBtn) {
         startBtn.addEventListener("click", function () {
             if (!guardLive() || startBtn.disabled) return;
+            showFeedback("Starting new run...", "info");
             setButtonBusy(startBtn, true, "Starting...");
             apiRequest("POST", apiBase + "/runs", {})
                 .then(function (payload) {
@@ -439,7 +450,7 @@
                     }
                     reloadAfterSuccess("New run started.");
                 })
-                .catch(function (err) { toast(err.message, "error"); })
+                .catch(function (err) { showFeedback(err.message, "error"); })
                 .finally(function () { setButtonBusy(startBtn, false); });
         });
     }
@@ -447,11 +458,17 @@
     const stopBtn = document.getElementById("stopRunBtn");
     if (stopBtn) {
         stopBtn.addEventListener("click", function () {
-            if (!guardLive() || stopBtn.disabled || !activeRunId) return;
+            const runId = activeRunId || dashCfg.activeRunId;
+            if (!guardLive() || stopBtn.disabled) return;
+            if (!runId) {
+                showFeedback("No active run to stop.", "error");
+                return;
+            }
+            showFeedback("Stopping run...", "info");
             setButtonBusy(stopBtn, true, "Stopping...");
-            apiRequest("POST", apiBase + "/runs/" + activeRunId + "/stop", {})
+            apiRequest("POST", apiBase + "/runs/" + runId + "/stop", {})
                 .then(function () { reloadAfterSuccess("Run stopped."); })
-                .catch(function (err) { toast(err.message, "error"); })
+                .catch(function (err) { showFeedback(err.message, "error"); })
                 .finally(function () { setButtonBusy(stopBtn, false); });
         });
     }
@@ -460,20 +477,24 @@
     if (sequenceBtn) {
         sequenceBtn.addEventListener("click", function () {
             if (!guardLive() || sequenceBtn.disabled) return;
+            showFeedback("Running sequence...", "info");
             setButtonBusy(sequenceBtn, true, "Running sequence...");
-            apiRequest("POST", apiBase + "/runs/sequence", { run_id: activeRunId })
+            apiRequest("POST", apiBase + "/runs/sequence", { run_id: activeRunId || dashCfg.activeRunId })
                 .then(function (payload) {
                     const seq = payload && payload.sequence;
+                    if (seq && seq.run_id) {
+                        activeRunId = seq.run_id;
+                    }
                     if (seq && seq.completed) {
                         reloadAfterSuccess("Sequence completed (" + seq.executed_count + " step(s)).");
                     } else if (seq && seq.stopped_on_step_name) {
-                        toast("Sequence stopped on " + seq.stopped_on_step_name + ": " + (seq.error || "Step failed."), "error");
+                        showFeedback("Sequence stopped on " + seq.stopped_on_step_name + ": " + (seq.error || "Step failed."), "error");
                         window.setTimeout(function () { window.location.reload(); }, 900);
                     } else {
                         reloadAfterSuccess("Sequence finished.");
                     }
                 })
-                .catch(function (err) { toast(err.message, "error"); })
+                .catch(function (err) { showFeedback(err.message, "error"); })
                 .finally(function () { setButtonBusy(sequenceBtn, false); });
         });
     }

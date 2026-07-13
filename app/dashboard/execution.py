@@ -32,9 +32,37 @@ class ExecutionService:
             raise ExecutionError("No active orchestration job is configured.")
         return jobs
 
+    def _ensure_active_run_id(self, run_id: int | None, *, actor: str) -> int:
+        if run_id is not None:
+            return int(run_id)
+
+        active = self._active_run()
+        if active:
+            return int(active["run_id"])
+
+        latest_run_id = self._repo.get_current_run_id()
+        if latest_run_id is not None:
+            runs = {int(run["run_id"]): run for run in self._repo.get_job_runs()}
+            latest = runs.get(int(latest_run_id))
+            if latest and latest["status"] in _ACTIVE_RUN_STATUSES:
+                return int(latest_run_id)
+
+        jobs = self._get_jobs()
+        label = datetime.utcnow().strftime("%B %Y")
+        created_run_id = self._repo.create_job_run(
+            job_id=int(jobs[0]["job_id"]),
+            triggered_by=actor,
+            run_name=label,
+        )
+        logger.info("auto_start_run run_id=%s actor=%s", created_run_id, actor)
+        return int(created_run_id)
+
     def _resolve_run_id(self, run_id: int | None) -> int:
         if run_id is not None:
             return int(run_id)
+        active = self._active_run()
+        if active:
+            return int(active["run_id"])
         current = self._repo.get_current_run_id()
         if current is None:
             raise ExecutionError("No active run. Start a new run first.")
@@ -62,7 +90,7 @@ class ExecutionService:
             "active_run_id": active["run_id"] if active else None,
             "active_run_status": active["status"] if active else None,
             "can_stop": execution_enabled() and active is not None,
-            "can_sequence": execution_enabled() and active is not None,
+            "can_sequence": execution_enabled(),
             "can_start": execution_enabled() and self._blocking_run_for_start() is None,
         }
         logger.info(
@@ -107,7 +135,7 @@ class ExecutionService:
     def run_step(self, step_id: int, *, run_id: int | None, actor: str) -> dict[str, Any]:
         logger.info("run_step requested by=%s step_id=%s run_id=%s", actor, step_id, run_id)
         self._require_live_execution()
-        resolved_run_id = self._resolve_run_id(run_id)
+        resolved_run_id = self._ensure_active_run_id(run_id, actor=actor)
         step = self._repo.get_step_by_id(step_id)
         if not step:
             raise ExecutionError("Step not found.")
@@ -139,7 +167,7 @@ class ExecutionService:
     def validate_step(self, step_id: int, *, run_id: int | None, actor: str) -> dict[str, Any]:
         logger.info("validate_step requested by=%s step_id=%s run_id=%s", actor, step_id, run_id)
         self._require_live_execution()
-        resolved_run_id = self._resolve_run_id(run_id)
+        resolved_run_id = self._ensure_active_run_id(run_id, actor=actor)
         step = self._repo.get_step_by_id(step_id)
         if not step:
             raise ExecutionError("Step not found.")
@@ -163,7 +191,7 @@ class ExecutionService:
     def run_sequence(self, *, run_id: int | None, actor: str) -> dict[str, Any]:
         logger.info("run_sequence requested by=%s run_id=%s", actor, run_id)
         self._require_live_execution()
-        resolved_run_id = self._resolve_run_id(run_id)
+        resolved_run_id = self._ensure_active_run_id(run_id, actor=actor)
         steps = sorted(
             self._repo.get_job_steps(),
             key=lambda step: (step.get("phase_code") or "", step.get("step_order") or 0, step["step_id"]),
