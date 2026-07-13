@@ -30,6 +30,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+$DevStartupBuildId = 'dev-process-startup-2026-07-13'
 
 . (Join-Path $PSScriptRoot 'scripts\dev_shared.ps1')
 
@@ -92,6 +93,7 @@ $steps = @(
 
 Write-DevHeader
 Write-Host ('Project: {0}' -f $ProjectRoot) -ForegroundColor Gray
+Write-Host ('Build:   {0}' -f $DevStartupBuildId) -ForegroundColor Gray
 Write-Host ('URL:     {0}/login' -f $appUrl) -ForegroundColor Gray
 if ($Branch) {
     Write-Host ('Branch:  {0}' -f $Branch) -ForegroundColor Gray
