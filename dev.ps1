@@ -131,22 +131,31 @@ if ($SkipGitPull) {
     Write-Host '[2/9] Syncing latest code...' -ForegroundColor Yellow
     Push-Location -Path $ProjectRoot
     try {
-        Invoke-DevGitCommand -Arguments @('fetch', 'origin') -StepName 'git fetch'
+        $gitIssues = @()
 
-        if ($Branch) {
-            Invoke-DevGitCommand -Arguments @('checkout', $Branch) -StepName 'git checkout'
+        if (-not (Invoke-DevGitCommand -Arguments @('fetch', 'origin') -StepName 'git fetch' -NonFatal)) {
+            $gitIssues += 'fetch failed'
         }
 
-        try {
-            Invoke-DevGitCommand -Arguments @('pull', '--ff-only') -StepName 'git pull'
+        if ($Branch) {
+            if (-not (Invoke-DevGitCommand -Arguments @('checkout', $Branch) -StepName 'git checkout' -NonFatal)) {
+                $gitIssues += 'checkout failed'
+            }
+        }
+
+        if (-not (Invoke-DevGitCommand -Arguments @('pull', '--ff-only') -StepName 'git pull' -NonFatal)) {
+            $gitIssues += 'pull failed'
+        }
+
+        if ($gitIssues.Count -eq 0) {
             if ($Branch) {
                 Set-DevStepStatus -Step $gitStep -Status 'ok' -Detail $Branch
             } else {
                 Set-DevStepStatus -Step $gitStep -Status 'ok'
             }
-        } catch {
-            Set-DevStepStatus -Step $gitStep -Status 'warn' -Detail 'git pull failed; continuing'
-            Write-Host '  WARNING: git pull failed. Continuing with local code.' -ForegroundColor Yellow
+        } else {
+            Set-DevStepStatus -Step $gitStep -Status 'warn' -Detail ($gitIssues -join '; ')
+            Write-Host '  WARNING: Git sync had issues. Continuing with local code.' -ForegroundColor Yellow
         }
     } catch {
         Set-DevStepStatus -Step $gitStep -Status 'warn' -Detail $_.Exception.Message
@@ -256,9 +265,9 @@ if (-not $NoBrowser) {
 try {
     Set-DevStepStatus -Step $startStep -Status 'ok'
     Write-DevStepLine -Step $startStep
-    & $venvPython $runScript
-    if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
-        throw ('EMApp exited with code {0}' -f $LASTEXITCODE)
+    $exitCode = Invoke-DevForegroundCommand -FilePath $venvPython -Arguments @($runScript)
+    if ($exitCode -ne 0) {
+        throw ('EMApp exited with code {0}' -f $exitCode)
     }
 } catch {
     Set-DevStepStatus -Step $startStep -Status 'fail' -Detail $_.Exception.Message

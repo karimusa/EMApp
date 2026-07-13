@@ -295,6 +295,24 @@ function Write-DevSummary {
     Write-Host ''
 }
 
+function Write-DevCommandOutput {
+    param(
+        [Parameter(ValueFromPipeline = $true)]
+        $Record
+    )
+
+    process {
+        if ($Record -is [System.Management.Automation.ErrorRecord]) {
+            $message = if ($Record.Exception) { $Record.Exception.Message } else { "$Record" }
+            if ($message) {
+                Write-Host $message
+            }
+        } elseif ($null -ne $Record) {
+            Write-Host $Record
+        }
+    }
+}
+
 function Invoke-DevNativeCommand {
     param(
         [Parameter(Mandatory = $true)]
@@ -316,16 +334,7 @@ function Invoke-DevNativeCommand {
     $ErrorActionPreference = 'Continue'
 
     try {
-        & $FilePath @Arguments 2>&1 | ForEach-Object {
-            if ($_ -is [System.Management.Automation.ErrorRecord]) {
-                $message = if ($_.Exception) { $_.Exception.Message } else { "$_" }
-                if ($message) {
-                    Write-Host $message
-                }
-            } else {
-                Write-Host $_
-            }
-        }
+        & $FilePath @Arguments 2>&1 | Write-DevCommandOutput
 
         if ($LASTEXITCODE -ne 0) {
             throw ('{0} failed with exit code {1}' -f $StepName, $LASTEXITCODE)
@@ -344,28 +353,75 @@ function Invoke-DevGitCommand {
         [string[]]$Arguments,
 
         [Parameter(Mandatory = $true)]
-        [string]$StepName
+        [string]$StepName,
+
+        [switch]$NonFatal
     )
+
+    $previousNativeErrorPref = $null
+    if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -Scope Global -ErrorAction SilentlyContinue) {
+        $previousNativeErrorPref = $PSNativeCommandUseErrorActionPreference
+        $PSNativeCommandUseErrorActionPreference = $false
+    }
 
     $previousErrorAction = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
 
     try {
-        & git @Arguments 2>&1 | ForEach-Object {
-            if ($_ -is [System.Management.Automation.ErrorRecord]) {
-                $message = if ($_.Exception) { $_.Exception.Message } else { "$_" }
-                if ($message) {
-                    Write-Host $message
-                }
-            } else {
-                Write-Host $_
-            }
+        & git @Arguments 2>&1 | Write-DevCommandOutput
+
+        $exitCode = $LASTEXITCODE
+        if ($null -eq $exitCode) {
+            $exitCode = 0
         }
 
-        if ($LASTEXITCODE -ne 0) {
-            throw ('{0} failed with exit code {1}' -f $StepName, $LASTEXITCODE)
+        if ($exitCode -ne 0) {
+            if ($NonFatal) {
+                Write-Host ('  WARNING: {0} failed with exit code {1}. Continuing.' -f $StepName, $exitCode) -ForegroundColor Yellow
+                return $false
+            }
+            throw ('{0} failed with exit code {1}' -f $StepName, $exitCode)
         }
+
+        return $true
     } finally {
         $ErrorActionPreference = $previousErrorAction
+        if ($null -ne $previousNativeErrorPref) {
+            $PSNativeCommandUseErrorActionPreference = $previousNativeErrorPref
+        }
+    }
+}
+
+function Invoke-DevForegroundCommand {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FilePath,
+
+        [string[]]$Arguments = @()
+    )
+
+    # Long-running processes (Flask) log INFO to stderr; only exit code should fail startup.
+    $previousNativeErrorPref = $null
+    if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -Scope Global -ErrorAction SilentlyContinue) {
+        $previousNativeErrorPref = $PSNativeCommandUseErrorActionPreference
+        $PSNativeCommandUseErrorActionPreference = $false
+    }
+
+    $previousErrorAction = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+
+    try {
+        & $FilePath @Arguments 2>&1 | Write-DevCommandOutput
+
+        $exitCode = $LASTEXITCODE
+        if ($null -eq $exitCode) {
+            $exitCode = 0
+        }
+        return $exitCode
+    } finally {
+        $ErrorActionPreference = $previousErrorAction
+        if ($null -ne $previousNativeErrorPref) {
+            $PSNativeCommandUseErrorActionPreference = $previousNativeErrorPref
+        }
     }
 }
