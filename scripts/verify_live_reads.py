@@ -11,6 +11,8 @@ Requires bootstrap credentials in .env and seeded MonthEndOrchestrationDB tables
 from __future__ import annotations
 
 import argparse
+import logging
+import os
 import sys
 from pathlib import Path
 
@@ -38,15 +40,15 @@ def _primary_failure_hint(rows: list[dict]) -> str | None:
     stored = stored_credential_from_row(primary)
     if stored and is_one_way_hash(stored):
         return (
-            "Hint: PRIMARY stores a one-way hash in sql_password_encrypted/"
-            "sql_password_hash. When PRIMARY matches bootstrap server/database/user, "
+            "Hint: PRIMARY stores a one-way hash in sql_password_hash. "
+            "When PRIMARY matches bootstrap server/database/user, "
             "BOOTSTRAP_PASSWORD is used automatically after you deploy the latest code. "
-            "Otherwise replace the hash with the real SQL login password or Fernet "
-            "ciphertext from scripts/encrypt_password.py."
+            "Otherwise replace the hash with the real SQL login password in "
+            "orchestration.app_connections.sql_password_hash."
         )
     if not stored:
         return (
-            "Hint: PRIMARY has no sql_password_encrypted value. "
+            "Hint: PRIMARY has no sql_password_hash value. "
             "Set it in orchestration.app_connections or match bootstrap "
             "server/database/user so BOOTSTRAP_PASSWORD applies."
         )
@@ -62,6 +64,14 @@ def _check(label: str, fn) -> None:
     print(f"  OK  {label}")
 
 
+def _quiet_cli_logging() -> None:
+    """Keep Flask/Python INFO logs off stderr during setup.ps1 -TestConnection."""
+    os.environ.setdefault("EMAPP_SKIP_FILE_LOG", "1")
+    logging.getLogger().setLevel(logging.WARNING)
+    for logger_name in ("werkzeug", "flask", "flask.app"):
+        logging.getLogger(logger_name).setLevel(logging.WARNING)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verify EMApp live SQL reads")
     parser.add_argument(
@@ -70,6 +80,7 @@ def main() -> int:
         help="Only test bootstrap + orchestration.app_connections",
     )
     args = parser.parse_args()
+    _quiet_cli_logging()
 
     load_env_file()
 
@@ -93,6 +104,7 @@ def main() -> int:
                     print(hint, file=sys.stderr)
                 return 1
             print("PRIMARY connection: SUCCESS")
+        print("\nConnection test: SUCCESS")
         return 0
 
     bootstrap = print_bootstrap_validation()

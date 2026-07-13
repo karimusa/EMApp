@@ -7,6 +7,7 @@ shapes the UI and /api/v1/* contracts expect.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from app.db.registry import PHASES, STEP_REGISTRY, job_key, trigger_for_job
@@ -22,6 +23,8 @@ _orchestration = OrchestrationRepository()
 _connections = ConnectionsRepository()
 _sql_agent = SqlAgentRepository()
 _users = UserRepository()
+
+logger = logging.getLogger(__name__)
 
 
 def get_phases() -> list[dict[str, str]]:
@@ -59,6 +62,27 @@ def get_job_steps() -> list[dict[str, Any]]:
 
 def get_step_runs() -> dict[int, dict[str, Any]]:
     return _orchestration.get_step_runs()
+
+
+def get_step_run_source() -> str:
+    return _orchestration.last_step_run_source
+
+
+def log_dashboard_data_sources(
+    *,
+    step_count: int,
+    step_run_count: int,
+    step_run_source: str,
+) -> None:
+    mode = data_source_label()
+    logger.info(
+        "Dashboard data mode=%s | step cards: %d from orchestration.job_steps | "
+        "step status: %d from %s",
+        mode,
+        step_count,
+        step_run_count,
+        step_run_source,
+    )
 
 
 def get_validation_results() -> dict[int, dict[str, Any]]:
@@ -105,6 +129,8 @@ __all__ = [
     "get_jobs",
     "get_job_steps",
     "get_step_runs",
+    "get_step_run_source",
+    "log_dashboard_data_sources",
     "get_validation_results",
     "get_execution_log",
     "get_run_metrics",

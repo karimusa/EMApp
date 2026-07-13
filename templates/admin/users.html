@@ -9,11 +9,27 @@
         <div class="content-title">
             <h2>Users</h2>
             <span class="run-pill run-pill--running"><i class="bi bi-shield-lock"></i> Admin only</span>
+            {% if live_db_available %}
+            <span class="run-pill run-pill--success"><i class="bi bi-database-check"></i> Live</span>
+            {% else %}
+            <span class="run-pill run-pill--pending"><i class="bi bi-database-x"></i> Mock data</span>
+            {% endif %}
         </div>
-        <button class="btn-primary" type="button" id="addUserBtn">
+        <button class="btn-primary" type="button" id="addUserBtn"
+                {% if not live_db_available %}disabled title="Live SQL connection unavailable. Validate PRIMARY in Settings before adding users."{% endif %}>
             <i class="bi bi-person-plus-fill"></i> Add User
         </button>
     </div>
+
+    {% if not live_db_available %}
+    <div class="page-banner page-banner--warn" role="status">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <div>
+            <strong>User management is read-only.</strong>
+            <span>Validate the PRIMARY connection to MonthEndOrchestrationDB in Settings to enable add, edit, role, password, and enable/disable actions.</span>
+        </div>
+    </div>
+    {% endif %}
 
     <p class="page-hint">Backed by <code>dbo.users</code>. Roles control access: Admins can run and validate
         steps and manage users; Read-only users can view the dashboard, logs, and job history.</p>
@@ -24,11 +40,12 @@
                 <thead>
                     <tr>
                         <th>ID</th><th>Username</th><th>Role</th><th>Status</th>
-                        <th>Created</th><th>Updated</th><th class="ta-right">Actions</th>
+                        <th>Created</th><th>Last login</th><th class="ta-right">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for u in users %}
+                    {% set is_self = (u.user_id == current_user_id) %}
                     <tr>
                         <td class="mono">{{ u.user_id }}</td>
                         <td>
@@ -52,18 +69,35 @@
                             {% endif %}
                         </td>
                         <td class="mono muted">{{ u.created_at }}</td>
-                        <td class="mono muted">{{ u.updated_at or '—' }}</td>
+                        <td class="mono muted">{{ u.last_login or u.updated_at or '—' }}</td>
                         <td class="ta-right">
                             <button class="btn-icon-sm" type="button" title="Edit user"
-                                    data-user-action="Edit" data-user-name="{{ u.username }}"><i class="bi bi-pencil"></i></button>
+                                    data-user-action="edit"
+                                    data-user-id="{{ u.user_id }}"
+                                    data-user-name="{{ u.username }}"
+                                    data-display-name="{{ u.display_name or u.username }}"
+                                    data-email="{{ u.email or '' }}"
+                                    {% if not live_db_available %}disabled{% endif %}><i class="bi bi-pencil"></i></button>
                             <button class="btn-icon-sm" type="button" title="Change role"
-                                    data-user-action="Change role" data-user-name="{{ u.username }}"><i class="bi bi-shield-shaded"></i></button>
-                            <button class="btn-icon-sm" type="button" title="Change password"
-                                    data-user-action="Change password" data-user-name="{{ u.username }}"><i class="bi bi-key"></i></button>
+                                    data-user-action="role"
+                                    data-user-id="{{ u.user_id }}"
+                                    data-user-name="{{ u.username }}"
+                                    data-role="{{ u.role }}"
+                                    {% if not live_db_available or is_self %}disabled{% endif %}
+                                    {% if is_self %}title="You cannot change your own role"{% endif %}><i class="bi bi-shield-shaded"></i></button>
+                            <button class="btn-icon-sm" type="button" title="Reset password"
+                                    data-user-action="password"
+                                    data-user-id="{{ u.user_id }}"
+                                    data-user-name="{{ u.username }}"
+                                    {% if not live_db_available %}disabled{% endif %}><i class="bi bi-key"></i></button>
                             <button class="btn-icon-sm btn-icon-sm--danger" type="button"
                                     title="{{ 'Disable user' if u.is_active else 'Enable user' }}"
-                                    data-user-action="{{ 'Disable' if u.is_active else 'Enable' }}"
-                                    data-user-name="{{ u.username }}">
+                                    data-user-action="toggle-active"
+                                    data-user-id="{{ u.user_id }}"
+                                    data-user-name="{{ u.username }}"
+                                    data-is-active="{{ '1' if u.is_active else '0' }}"
+                                    {% if not live_db_available or is_self %}disabled{% endif %}
+                                    {% if is_self %}title="You cannot disable your own account"{% endif %}>
                                 <i class="bi {{ 'bi-person-x' if u.is_active else 'bi-person-check' }}"></i>
                             </button>
                         </td>
@@ -76,6 +110,138 @@
 
 {% endblock %}
 
+{% block modals %}
+    <div class="modal-overlay d-none" id="addUserModal" role="dialog" aria-modal="true" aria-labelledby="addUserTitle">
+        <div class="modal-card">
+            <div class="modal-head">
+                <h3 id="addUserTitle"><i class="bi bi-person-plus-fill"></i> Add user</h3>
+                <button class="modal-close" type="button" data-modal-close aria-label="Close"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <form id="addUserForm">
+                <div class="modal-body">
+                    <div class="modal-form">
+                        <label for="addUsername">Username</label>
+                        <input id="addUsername" name="username" type="text" required autocomplete="off">
+                        <label for="addDisplayName">Display name</label>
+                        <input id="addDisplayName" name="display_name" type="text" autocomplete="off">
+                        <label for="addEmail">Email</label>
+                        <input id="addEmail" name="email" type="email" autocomplete="off">
+                        <label for="addRole">Role</label>
+                        <select id="addRole" name="role" class="filter-select">
+                            <option value="ReadOnly">ReadOnly</option>
+                            <option value="Admin">Admin</option>
+                        </select>
+                        <label for="addPassword">Password</label>
+                        <input id="addPassword" name="password" type="password" required autocomplete="new-password">
+                    </div>
+                </div>
+                <div class="modal-foot">
+                    <button class="btn-ghost" type="button" data-modal-close>Cancel</button>
+                    <button class="btn-primary" type="submit">Create user</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-overlay d-none" id="editUserModal" role="dialog" aria-modal="true" aria-labelledby="editUserTitle">
+        <div class="modal-card">
+            <div class="modal-head">
+                <h3 id="editUserTitle"><i class="bi bi-pencil"></i> Edit user</h3>
+                <button class="modal-close" type="button" data-modal-close aria-label="Close"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <form id="editUserForm">
+                <div class="modal-body">
+                    <p class="modal-message" id="editUserSubtitle"></p>
+                    <div class="modal-form">
+                        <label for="editDisplayName">Display name</label>
+                        <input id="editDisplayName" name="display_name" type="text" required autocomplete="off">
+                        <label for="editEmail">Email</label>
+                        <input id="editEmail" name="email" type="email" autocomplete="off">
+                    </div>
+                </div>
+                <div class="modal-foot">
+                    <button class="btn-ghost" type="button" data-modal-close>Cancel</button>
+                    <button class="btn-primary" type="submit">Save changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-overlay d-none" id="roleUserModal" role="dialog" aria-modal="true" aria-labelledby="roleUserTitle">
+        <div class="modal-card">
+            <div class="modal-head">
+                <h3 id="roleUserTitle"><i class="bi bi-shield-shaded"></i> Change role</h3>
+                <button class="modal-close" type="button" data-modal-close aria-label="Close"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <form id="roleUserForm">
+                <div class="modal-body">
+                    <p class="modal-message" id="roleUserSubtitle"></p>
+                    <div class="modal-form">
+                        <label for="roleSelect">Role</label>
+                        <select id="roleSelect" name="role" class="filter-select">
+                            <option value="ReadOnly">ReadOnly</option>
+                            <option value="Admin">Admin</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-foot">
+                    <button class="btn-ghost" type="button" data-modal-close>Cancel</button>
+                    <button class="btn-primary" type="submit">Update role</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-overlay d-none" id="passwordUserModal" role="dialog" aria-modal="true" aria-labelledby="passwordUserTitle">
+        <div class="modal-card">
+            <div class="modal-head">
+                <h3 id="passwordUserTitle"><i class="bi bi-key"></i> Reset password</h3>
+                <button class="modal-close" type="button" data-modal-close aria-label="Close"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <form id="passwordUserForm">
+                <div class="modal-body">
+                    <p class="modal-message" id="passwordUserSubtitle"></p>
+                    <div class="modal-form">
+                        <label for="newPassword">New password</label>
+                        <input id="newPassword" name="password" type="password" required autocomplete="new-password">
+                    </div>
+                </div>
+                <div class="modal-foot">
+                    <button class="btn-ghost" type="button" data-modal-close>Cancel</button>
+                    <button class="btn-primary" type="submit">Reset password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-overlay d-none" id="toggleActiveModal" role="dialog" aria-modal="true" aria-labelledby="toggleActiveTitle">
+        <div class="modal-card">
+            <div class="modal-head">
+                <h3 id="toggleActiveTitle"><i class="bi bi-person-x"></i> Change status</h3>
+                <button class="modal-close" type="button" data-modal-close aria-label="Close"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <form id="toggleActiveForm">
+                <div class="modal-body">
+                    <p class="modal-message" id="toggleActiveSubtitle"></p>
+                </div>
+                <div class="modal-foot">
+                    <button class="btn-ghost" type="button" data-modal-close>Cancel</button>
+                    <button class="btn-primary" type="submit" id="toggleActiveSubmit">Confirm</button>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endblock %}
+
 {% block scripts %}
+<script>
+    window.rraUserAdmin = {
+        liveDbAvailable: {{ 'true' if live_db_available else 'false' }},
+        currentUserId: {{ current_user_id or 0 }},
+        dataSource: {{ data_source|tojson }},
+        apiBase: {{ url_for('api.users')|tojson }},
+        liveUnavailableMessage: "Live SQL connection unavailable. Validate PRIMARY in Settings before managing users."
+    };
+</script>
 <script src="{{ url_for('static', filename='js/users.js') }}"></script>
 {% endblock %}

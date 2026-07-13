@@ -55,8 +55,8 @@ Enterprise month-end orchestration console. UI is frozen; data loads through
 
 5. **Start the app**
 
-   ```bat
-   start.bat
+   ```powershell
+   .\dev.ps1
    ```
 
    Open **http://127.0.0.1:50006/login**
@@ -68,16 +68,26 @@ Enterprise month-end orchestration console. UI is frozen; data loads through
 
 ## Quick start (after first run)
 
-```bat
-start.bat
+```powershell
+cd G:\EM
+.\dev.ps1
 ```
+
+To switch to a feature branch and start in one step:
+
+```powershell
+.\dev.ps1 -Branch cursor/users-admin-actions-2c1b
+```
+
+`start.bat` and VS Code **Ctrl+Shift+B** also run `dev.ps1`.
 
 ## Setup scripts
 
 | File | Purpose |
 |------|---------|
+| `dev.ps1` | **One-command dev workflow** — git sync, permissions, venv, setup, DB check, start app |
 | `setup.ps1` | Verify Python, create venv, install packages, check ODBC driver, load `.env` |
-| `start.bat` | Run setup (prepare only) then start the app on port **50006** |
+| `start.bat` | Wrapper that runs `dev.ps1` |
 | `scripts/seed_database.py` | Seed all tables from registry + sample run data |
 | `scripts/verify_live_reads.py` | Confirm live SQL read layer for every screen |
 | `scripts/encrypt_password.py` | Encrypt SQL login passwords for `sql_password_encrypted` |

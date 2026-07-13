@@ -4,12 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.db.connection_manager import (
-    APP_CONNECTIONS_REGISTRY_SQL,
-    LEGACY_APP_CONNECTIONS_REGISTRY_SQL,
-    get_connection_manager,
-)
-from app.db.credentials import stored_credential_from_row
+from app.db.connection_manager import get_connection_manager
+from app.db.credentials import stored_credential_details
 from app.db.formatters import coerce_bool, format_timestamp
 from app.db.repositories.base import query_primary, use_mock_data
 
@@ -25,12 +21,7 @@ class ConnectionsRepository:
         return [self._normalize(row) for row in rows]
 
     def _query_registry(self) -> list[dict[str, Any]]:
-        try:
-            return query_primary(APP_CONNECTIONS_REGISTRY_SQL)
-        except Exception as exc:
-            if "sql_password_encrypted" not in str(exc):
-                raise
-            return query_primary(LEGACY_APP_CONNECTIONS_REGISTRY_SQL)
+        return query_primary(get_connection_manager().registry_sql())
 
     def get_active(self) -> dict[str, Any]:
         connections = self.list_connections()
@@ -52,7 +43,9 @@ class ConnectionsRepository:
             return None
 
     def _normalize(self, row: dict[str, Any]) -> dict[str, Any]:
-        credential = stored_credential_from_row(row)
+        credential_details = stored_credential_details(row)
+        credential = credential_details.value
+        redacted = "********" if credential else None
         return {
             "connection_id": row["connection_id"],
             "environment_name": row["environment_name"],
@@ -61,9 +54,15 @@ class ConnectionsRepository:
             "auth_type": row.get("auth_type") or "sql",
             "sql_username": row.get("sql_username") or "",
             "sql_password_encrypted": (
-                "gAAAAAB...redacted" if credential else None
+                redacted
+                if credential and credential_details.origin_column == "sql_password_encrypted"
+                else None
             ),
-            "sql_password_hash": None,
+            "sql_password_hash": (
+                redacted
+                if credential and credential_details.origin_column == "sql_password_hash"
+                else None
+            ),
             "description": row.get("description") or "",
             "is_active": coerce_bool(row.get("is_active")),
             "created_at": format_timestamp(row.get("created_at")),

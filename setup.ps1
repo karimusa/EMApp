@@ -40,9 +40,36 @@ function Invoke-NativeCommand {
         [string]$StepName
     )
 
-    & $FilePath @Arguments
-    if ($LASTEXITCODE -ne 0) {
-        throw ('{0} failed with exit code {1}' -f $StepName, $LASTEXITCODE)
+    # Python/Flask log INFO to stderr; do not treat that as a terminating error.
+    $previousNativeErrorPref = $null
+    if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -Scope Global -ErrorAction SilentlyContinue) {
+        $previousNativeErrorPref = $PSNativeCommandUseErrorActionPreference
+        $PSNativeCommandUseErrorActionPreference = $false
+    }
+
+    $previousErrorAction = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+
+    try {
+        & $FilePath @Arguments 2>&1 | ForEach-Object {
+            if ($_ -is [System.Management.Automation.ErrorRecord]) {
+                $message = if ($_.Exception) { $_.Exception.Message } else { "$_" }
+                if ($message) {
+                    Write-Host $message
+                }
+            } else {
+                Write-Host $_
+            }
+        }
+
+        if ($LASTEXITCODE -ne 0) {
+            throw ('{0} failed with exit code {1}' -f $StepName, $LASTEXITCODE)
+        }
+    } finally {
+        $ErrorActionPreference = $previousErrorAction
+        if ($null -ne $previousNativeErrorPref) {
+            $PSNativeCommandUseErrorActionPreference = $previousNativeErrorPref
+        }
     }
 }
 
@@ -152,6 +179,24 @@ function Test-BootstrapConfiguration {
     Write-Host 'Runtime SQL connections come from orchestration.app_connections only.'
     Write-Host '.env stores the bootstrap connection only.'
     throw 'Bootstrap configuration is incomplete.'
+}
+
+function Test-AppPortInUse {
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$Port
+    )
+
+    try {
+        if (Get-Command Get-NetTCPConnection -ErrorAction SilentlyContinue) {
+            $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+                Select-Object -First 1
+            return $null -ne $listener
+        }
+    } catch {
+    }
+
+    return $false
 }
 
 function Get-PythonLauncher {
@@ -299,10 +344,15 @@ if ($TestConnection) {
     Invoke-NativeCommand -FilePath $venvPython -Arguments @($deployCheckScript) -StepName 'Verify deployed code'
     Write-Host ''
     Write-Host '[7/7] Testing database connection...' -ForegroundColor Yellow
+    if (Test-AppPortInUse -Port $Port) {
+        Write-Host ('  WARNING: Port {0} is already in use — stop start.bat (Ctrl+C) before testing if git pull or setup fails with file locks.' -f $Port) -ForegroundColor Yellow
+    }
     if (-not (Test-Path -Path $verifyScript)) {
         throw ('ERROR: Connection test script not found at {0}' -f $verifyScript)
     }
     Invoke-NativeCommand -FilePath $venvPython -Arguments @($verifyScript, '--connections-only') -StepName 'Test database connection'
+    Write-Host ''
+    Write-Host 'Database connection test: SUCCESS' -ForegroundColor Green
     exit 0
 }
 

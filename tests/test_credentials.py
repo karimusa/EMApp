@@ -10,6 +10,7 @@ from app.db.credentials import (
     is_unusable_stored_credential,
     matches_bootstrap_target,
     resolve_sql_login_password,
+    resolve_sql_login_password_with_source,
     stored_credential_from_row,
 )
 
@@ -71,7 +72,7 @@ def test_resolve_rejects_one_way_hash_without_bootstrap_match():
 
 
 def test_resolve_one_way_hash_uses_bootstrap_fallback_for_primary():
-    password = resolve_sql_login_password(
+    password = resolve_sql_login_password_with_source(
         USER_SHA256,
         secret_key="",
         environment_name="PRIMARY",
@@ -79,8 +80,10 @@ def test_resolve_one_way_hash_uses_bootstrap_fallback_for_primary():
         database_name="MonthEndOrchestrationDB",
         sql_username="MonthEndApp",
         config=BOOTSTRAP_CONFIG,
+        origin_column="sql_password_hash",
     )
-    assert password == "MonthEndApp"
+    assert password.password == "MonthEndApp"
+    assert password.source == "BOOTSTRAP_PASSWORD"
 
 
 def test_resolve_empty_uses_bootstrap_fallback():
@@ -97,7 +100,7 @@ def test_resolve_empty_uses_bootstrap_fallback():
 
 
 def test_resolve_empty_no_fallback_when_target_differs():
-    with pytest.raises(ConnectionCredentialError, match="no SQL login password"):
+    with pytest.raises(ConnectionCredentialError, match="sql_password_hash"):
         resolve_sql_login_password(
             "",
             secret_key="",

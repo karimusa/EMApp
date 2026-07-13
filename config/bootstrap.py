@@ -8,7 +8,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from app.db.connection_manager import ACTIVE_APP_CONNECTIONS_SQL
+from app.db.app_connections_schema import (
+    active_app_connections_sql,
+    detect_sql_password_encrypted_column,
+)
 from config.settings import (
     _detect_env_file_encoding,
     _parse_dotenv_file,
@@ -17,7 +20,9 @@ from config.settings import (
     load_env_file,
 )
 
-BOOTSTRAP_REGISTRY_PREVIEW_SQL = ACTIVE_APP_CONNECTIONS_SQL
+BOOTSTRAP_REGISTRY_PREVIEW_SQL = active_app_connections_sql(
+    include_encrypted_password=False
+)
 
 
 @dataclass(frozen=True)
@@ -107,7 +112,8 @@ BOOTSTRAP_DATABASE=MonthEndOrchestrationDB
 BOOTSTRAP_USER=MonthEndApp
 BOOTSTRAP_PASSWORD=MonthEndApp
 
-CONNECTION_SECRET_KEY is optional unless sql_password_encrypted values are Fernet-encrypted.
+CONNECTION_SECRET_KEY is optional unless sql_password_encrypted is present and values are Fernet-encrypted.
+Store SQL login passwords in orchestration.app_connections.sql_password_hash (current schema).
 Do not store one-way hashes in orchestration.app_connections — use dbo.users.password_hash for app logins only.
 """
 
@@ -136,7 +142,11 @@ def run_bootstrap_self_test(app_config: dict) -> list[dict[str, Any]]:
         cursor = db.cursor()
         cursor.execute("SELECT 1")
         cursor.fetchone()
-        cursor.execute(BOOTSTRAP_REGISTRY_PREVIEW_SQL)
+        include_encrypted = detect_sql_password_encrypted_column(cursor)
+        registry_sql = active_app_connections_sql(
+            include_encrypted_password=include_encrypted
+        )
+        cursor.execute(registry_sql)
         columns = [col[0] for col in cursor.description]
         return [dict(zip(columns, row)) for row in cursor.fetchall()]
 

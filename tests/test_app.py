@@ -135,6 +135,16 @@ class TestAdminPermissions:
         response = client.get("/dashboard")
         assert b">Users</span>" in response.data
 
+    def test_dashboard_renders_execution_controls(self, client):
+        _login(client)
+        response = client.get("/dashboard")
+        assert response.status_code == 200
+        assert b"window.rraDashboard" in response.data
+        assert b"Stop Run" in response.data
+        assert b"Run Sequence" in response.data
+        assert b"dashboard-execution-2026-07-10" in response.data
+        assert b"execution-status-bar" in response.data
+
 
 class TestApi:
     def test_health(self, client):
